@@ -8,54 +8,93 @@
   <link rel="stylesheet" href="assets/pico.min.css">
   <link rel="stylesheet" href="assets/katex.min.css">
   <link rel="stylesheet" href="assets/style.css">
-  <link rel="stylesheet" href="assets/page.css">
-  <link rel="stylesheet" href="assets/bootsuite/splash.css">
+  <link rel="stylesheet" href="assets/splash-v3.css">
 </head>
 <body>
-  <div id="dsh-startup-root" class="dsu-root dsu-boot"></div>
-  <script>
-    // 关掉 WebView2 的滚动位置恢复，避免一打开就停在半截页面
-    if ("scrollRestoration" in history) {
-      history.scrollRestoration = "manual";
-    }
-    window.scrollTo(0, 0);
+  <div class="splash" id="splash" aria-hidden="true">
+    <div class="splash-scene">
+      <div class="splash-art"></div>
+      <div class="splash-wash"></div>
+      <div class="splash-particles" id="splashParticles"></div>
+      <div class="splash-scan"></div>
+    </div>
+    <div class="splash-boot">
+      <span class="splash-boot-kicker">DEEPSEEK · AI ASSISTANT</span>
+      <div class="splash-boot-logo">DeepSeek</div>
+      <div class="splash-boot-welcome">欢迎来到专业工作模式</div>
+      <div class="splash-boot-en">PROFESSIONAL WORK MODE</div>
+      <div class="splash-term">
+        <span style="--d: 0">&gt; initializing dreams...</span>
+        <span style="--d: 1">&gt; loading local math engine...</span>
+        <span style="--d: 2">&gt; ready<span class="splash-caret">▌</span></span>
+      </div>
+    </div>
+    <div class="splash-copy">
+      <h1>自由计算器</h1>
+      <p>泰勒极限观测引擎 · 本地离线计算</p>
+      <div class="splash-loader"><span></span></div>
+      <small>正在载入本地数学引擎</small>
+    </div>
+    <span class="splash-badge">WHALE-01 // BOOT SEQUENCE</span>
+    <span class="splash-skip">点击任意处 / Esc 跳过</span>
+    <script>
+      (function () {
+        // 关掉 WebView2 的滚动位置恢复，避免一打开就停在半截页面
+        if ("scrollRestoration" in history) {
+          history.scrollRestoration = "manual";
+        }
+        window.scrollTo(0, 0);
 
-    (function () {
-      var SKINS = {
-        maid: "maid_whale.png",
-        orca: "orca_whale.png",
-        chibi: "chibi_whale.png"
-      };
-      var skin = localStorage.getItem("freecalc.skin") || "maid";
-      if (!SKINS[skin]) skin = "maid";
-      document.documentElement.dataset.skin = skin;
-      document.documentElement.dataset.mascotFile = SKINS[skin];
-      document.documentElement.style.setProperty(
-        "--mascot-bg",
-        'url("assets/img/' + SKINS[skin] + '")'
-      );
-    })();
+        var SKINS = {
+          maid: "maid_whale.png",
+          orca: "orca_whale.png",
+          chibi: "chibi_whale.png"
+        };
+        var skin = localStorage.getItem("freecalc.skin") || "maid";
+        if (!SKINS[skin]) skin = "maid";
+        document.documentElement.dataset.skin = skin;
+        document.documentElement.dataset.mascotFile = SKINS[skin];
+        document.documentElement.style.setProperty(
+          "--mascot-bg",
+          'url("assets/img/' + SKINS[skin] + '")'
+        );
 
-    // dsh-boot-suite v2.13.0 · 六幕冷启动动画
-    window.__DSH_STARTUP__ = {
-      enabled: true,
-      mode: "always",
-      theme: "light",
-      speed: 1.5,
-      requireInteraction: false,
-      allowSkip: true,
-      sound: true,
-      voice: false,
-      sfx: "synth",
-      identity: "WHALE-01",
-      identityId: "0001",
-      accessLevel: "3",
-      accent: "#ff7500",
-      glitchA: "#ff3b30",
-      glitchB: "#2971b8"
-    };
-  </script>
-  <script src="assets/bootsuite/splash.js"></script>
+        var duration = parseFloat(localStorage.getItem("freecalc.splash"));
+        if (!isFinite(duration) || duration <= 0) duration = 3;
+        duration = Math.min(3, Math.max(1, duration));
+
+        var splash = document.getElementById("splash");
+        if (splash) {
+          splash.style.setProperty("--splash-dur", duration + "s");
+          splash.dataset.duration = String(duration);
+
+          var host = document.getElementById("splashParticles");
+          if (host) {
+            for (var i = 0; i < 30; i += 1) {
+              var dot = document.createElement("span");
+              dot.style.setProperty("--x", (Math.random() * 100).toFixed(2) + "%");
+              dot.style.setProperty("--d", (2.4 + Math.random() * 2.8).toFixed(2) + "s");
+              dot.style.setProperty("--delay", (-Math.random() * 5).toFixed(2) + "s");
+              dot.style.setProperty("--size", (1 + Math.random() * 2.6).toFixed(1) + "px");
+              host.appendChild(dot);
+            }
+          }
+
+          splash.addEventListener("mousemove", function (event) {
+            var rect = splash.getBoundingClientRect();
+            var mx = (event.clientX - rect.left) / rect.width - 0.5;
+            var my = (event.clientY - rect.top) / rect.height - 0.5;
+            splash.style.setProperty("--mx", mx.toFixed(3));
+            splash.style.setProperty("--my", my.toFixed(3));
+          });
+          splash.addEventListener("mouseleave", function () {
+            splash.style.setProperty("--mx", "0");
+            splash.style.setProperty("--my", "0");
+          });
+        }
+      })();
+    </script>
+  </div>
 
   <div class="page-art" aria-hidden="true"></div>
 
@@ -93,6 +132,14 @@
             <select id="motionSelect">
               <option value="animated">动态</option>
               <option value="static">静态</option>
+            </select>
+          </label>
+          <label for="splashSelect">
+            开屏
+            <select id="splashSelect" title="下次启动生效">
+              <option value="1">1 秒</option>
+              <option value="2">2 秒</option>
+              <option value="3">3 秒</option>
             </select>
           </label>
         </div>

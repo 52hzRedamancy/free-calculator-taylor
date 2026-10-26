@@ -24,10 +24,6 @@
 
 该壁纸仅用于本项目的非商业个人使用，权利归原作者；本项目不对其主张任何权利。
 
-## 开屏动画
-
-`assets/bootsuite/splash.js`、`splash.css` 取自 [LeeRolling/dsh-boot-suite](https://github.com/LeeRolling/dsh-boot-suite) v2.13.0（MIT License）。为适配本地 `file://` 运行，仅做了一处容错补丁：无模板时 `TEMPLATE.gates` 的空值保护。动画中的 DeepSeek 标识与文案版权归 DeepSeek；无需网络，音效由 WebAudio 现场合成。
-
 ## 第三方前端资源
 
 - KaTeX（CSS / JS / 字体）：MIT License
