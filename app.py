@@ -54,6 +54,14 @@ def main() -> None:
     # WebView2 默认拦截下载；推导报告通过 Blob 下载，必须显式放行。
     webview.settings["ALLOW_DOWNLOADS"] = True
 
+    # 开屏视频需要自动播放（含声音），放行无手势自动播放。
+    autoplay_arg = "--autoplay-policy=no-user-gesture-required"
+    extra_args = os.environ.get("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "")
+    if autoplay_arg not in extra_args:
+        os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = (
+            extra_args + " " + autoplay_arg
+        ).strip()
+
     width, height, x, y = fit_window_size()
     window_args = dict(
         title="自由计算器 v1.2.0",

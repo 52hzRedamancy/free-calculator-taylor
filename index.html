@@ -8,34 +8,18 @@
   <link rel="stylesheet" href="assets/pico.min.css">
   <link rel="stylesheet" href="assets/katex.min.css">
   <link rel="stylesheet" href="assets/style.css">
-  <link rel="stylesheet" href="assets/splash-v3.css">
+  <link rel="stylesheet" href="assets/splash-v4.css">
 </head>
 <body>
   <div class="splash" id="splash" aria-hidden="true">
-    <div class="splash-scene">
-      <div class="splash-art"></div>
-      <div class="splash-wash"></div>
-      <div class="splash-particles" id="splashParticles"></div>
-      <div class="splash-scan"></div>
+    <video id="splashVideo" class="splash-video" src="assets/video/boot.mp4" preload="auto" playsinline></video>
+    <img class="splash-fallback" src="assets/img/deepseek_mode.webp" alt="">
+    <div class="splash-video-fade"></div>
+    <div class="splash-signature">
+      <span>DEEPSEEK · PROFESSIONAL WORK MODE</span>
+      <b>自由计算器</b>
+      <small>TAYLOR LIMIT OBSERVATION ENGINE</small>
     </div>
-    <div class="splash-boot">
-      <span class="splash-boot-kicker">DEEPSEEK · AI ASSISTANT</span>
-      <div class="splash-boot-logo">DeepSeek</div>
-      <div class="splash-boot-welcome">欢迎来到专业工作模式</div>
-      <div class="splash-boot-en">PROFESSIONAL WORK MODE</div>
-      <div class="splash-term">
-        <span style="--d: 0">&gt; initializing dreams...</span>
-        <span style="--d: 1">&gt; loading local math engine...</span>
-        <span style="--d: 2">&gt; ready<span class="splash-caret">▌</span></span>
-      </div>
-    </div>
-    <div class="splash-copy">
-      <h1>自由计算器</h1>
-      <p>泰勒极限观测引擎 · 本地离线计算</p>
-      <div class="splash-loader"><span></span></div>
-      <small>正在载入本地数学引擎</small>
-    </div>
-    <span class="splash-badge">WHALE-01 // BOOT SEQUENCE</span>
     <span class="splash-skip">点击任意处 / Esc 跳过</span>
     <script>
       (function () {
@@ -59,37 +43,39 @@
           'url("assets/img/' + SKINS[skin] + '")'
         );
 
-        var duration = parseFloat(localStorage.getItem("freecalc.splash"));
-        if (!isFinite(duration) || duration <= 0) duration = 3;
-        duration = Math.min(3, Math.max(1, duration));
+        var video = document.getElementById("splashVideo");
+        if (!video) {
+          return;
+        }
+        video.volume = 0.6;
 
-        var splash = document.getElementById("splash");
-        if (splash) {
-          splash.style.setProperty("--splash-dur", duration + "s");
-          splash.dataset.duration = String(duration);
-
-          var host = document.getElementById("splashParticles");
-          if (host) {
-            for (var i = 0; i < 30; i += 1) {
-              var dot = document.createElement("span");
-              dot.style.setProperty("--x", (Math.random() * 100).toFixed(2) + "%");
-              dot.style.setProperty("--d", (2.4 + Math.random() * 2.8).toFixed(2) + "s");
-              dot.style.setProperty("--delay", (-Math.random() * 5).toFixed(2) + "s");
-              dot.style.setProperty("--size", (1 + Math.random() * 2.6).toFixed(1) + "px");
-              host.appendChild(dot);
-            }
+        var tick = new Audio("assets/audio/sfx-tick.mp3");
+        tick.volume = 0.22;
+        var run = new Audio("assets/audio/sfx-ticks-run.mp3");
+        run.volume = 0.14;
+        var sounded = false;
+        function startSound() {
+          if (sounded) {
+            return;
           }
+          sounded = true;
+          try {
+            tick.play();
+          } catch (error) {}
+          window.setTimeout(function () {
+            try {
+              run.play();
+            } catch (error) {}
+          }, 2600);
+        }
 
-          splash.addEventListener("mousemove", function (event) {
-            var rect = splash.getBoundingClientRect();
-            var mx = (event.clientX - rect.left) / rect.width - 0.5;
-            var my = (event.clientY - rect.top) / rect.height - 0.5;
-            splash.style.setProperty("--mx", mx.toFixed(3));
-            splash.style.setProperty("--my", my.toFixed(3));
-          });
-          splash.addEventListener("mouseleave", function () {
-            splash.style.setProperty("--mx", "0");
-            splash.style.setProperty("--my", "0");
+        video.addEventListener("playing", startSound, { once: true });
+        var started = video.play();
+        if (started && started.catch) {
+          started.catch(function () {
+            video.muted = true;
+            video.play().catch(function () {});
+            startSound();
           });
         }
       })();
@@ -132,14 +118,6 @@
             <select id="motionSelect">
               <option value="animated">动态</option>
               <option value="static">静态</option>
-            </select>
-          </label>
-          <label for="splashSelect">
-            开屏
-            <select id="splashSelect" title="下次启动生效">
-              <option value="1">1 秒</option>
-              <option value="2">2 秒</option>
-              <option value="3">3 秒</option>
             </select>
           </label>
         </div>

@@ -13,7 +13,6 @@
   var directionSelect = document.getElementById("directionSelect");
   var skinSelect = document.getElementById("skinSelect");
   var motionSelect = document.getElementById("motionSelect");
-  var splashSelect = document.getElementById("splashSelect");
   var replayPlotBtn = document.getElementById("replayPlotBtn");
   var observeBtn = document.getElementById("observeBtn");
   var resultSection = document.getElementById("resultSection");
@@ -818,6 +817,12 @@
     splash.dataset.gone = "1";
     splashGone = true;
     tryStartPlotAnimation();
+    var splashVideo = document.getElementById("splashVideo");
+    if (splashVideo) {
+      try {
+        splashVideo.pause();
+      } catch (error) {}
+    }
     if (splashHideTimer) {
       window.clearTimeout(splashHideTimer);
       splashHideTimer = null;
@@ -857,8 +862,11 @@
     return true;
   }
 
-  input.addEventListener("input", function () {
-    expandLogTemplate(input);
+  input.addEventListener("input", function (event) {
+    // 只在真正输入字符时补模板；退格/删除时绝不重新插入，保证能从右往左删干净
+    if (event && event.inputType === "insertText") {
+      expandLogTemplate(input);
+    }
     userInteracted = true;
     clearError();
   });
@@ -872,6 +880,17 @@
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
       runObservation();
+    }
+    // log( 自动补出的右括号留在最左边时，退格也能直接从右往左删干净
+    if (
+      event.key === "Backspace" &&
+      input.selectionStart === 0 &&
+      input.selectionEnd === 0 &&
+      /^\)+$/.test(input.value)
+    ) {
+      event.preventDefault();
+      input.value = "";
+      clearError();
     }
   });
 
@@ -942,20 +961,6 @@
     applySkin(localStorage.getItem("freecalc.skin") || "maid");
   }
 
-  if (splashSelect) {
-    var savedSplash = parseFloat(localStorage.getItem("freecalc.splash"));
-    if (!isFinite(savedSplash)) {
-      savedSplash = 3;
-    }
-    savedSplash = Math.min(3, Math.max(1, Math.round(savedSplash)));
-    splashSelect.value = String(savedSplash);
-    splashSelect.addEventListener("change", function () {
-      try {
-        localStorage.setItem("freecalc.splash", splashSelect.value);
-      } catch (error) {}
-    });
-  }
-
   if (motionSelect) {
     motionSelect.value = motionMode === "static" ? "static" : "animated";
     motionSelect.addEventListener("change", function () {
@@ -1008,12 +1013,20 @@
 
   if (splash) {
     splash.addEventListener("click", hideSplash);
-    var splashSeconds = parseFloat(splash.dataset.duration);
-    if (!isFinite(splashSeconds)) {
-      splashSeconds = 2.75;
+    var splashVideo = document.getElementById("splashVideo");
+    if (splashVideo) {
+      splashVideo.addEventListener("ended", hideSplash);
+      splashVideo.addEventListener("error", function () {
+        splash.classList.add("is-video-failed");
+        if (splashHideTimer) {
+          window.clearTimeout(splashHideTimer);
+        }
+        splashHideTimer = window.setTimeout(hideSplash, 2600);
+      });
+      splashHideTimer = window.setTimeout(hideSplash, 30000);
+    } else {
+      splashHideTimer = window.setTimeout(hideSplash, 3000);
     }
-    splashSeconds = Math.min(3, Math.max(1, splashSeconds));
-    splashHideTimer = window.setTimeout(hideSplash, splashSeconds * 1000);
   }
 
   document.addEventListener("keydown", function (event) {
