@@ -93,6 +93,7 @@ class MathEngine:
         expression: Any,
         center: Any = None,
         max_order: Any = None,
+        direction: Any = None,
     ) -> dict[str, Any]:
         """计算表达式在 x -> center 时的极限，并返回 1--max_order 阶泰勒观测结果。"""
         try:
@@ -107,6 +108,10 @@ class MathEngine:
             order_check = self._parse_order(max_order)
             if "error" in order_check:
                 return {"success": False, "error": order_check["error"]}
+
+            direction_check = self._parse_direction(direction)
+            if "error" in direction_check:
+                return {"success": False, "error": direction_check["error"]}
 
             cooldown = self._cooldown_remaining()
             if cooldown > 0:
@@ -126,6 +131,7 @@ class MathEngine:
                 center_check["center"],
                 order_check["order"],
                 checked.get("raw", checked["expression"]),
+                direction_check["direction"],
             )
             try:
                 return future.result(timeout=self.TIMEOUT_SECONDS)
@@ -331,6 +337,53 @@ class MathEngine:
             }
         return {"order": order}
 
+    def _parse_direction(self, raw: Any) -> dict[str, Any]:
+        text = "auto" if raw is None or str(raw).strip() == "" else str(raw).strip().lower()
+        aliases = {
+            "auto": "auto",
+            "both": "both",
+            "two-sided": "both",
+            "双侧": "both",
+            "right": "right",
+            "right-sided": "right",
+            "右": "right",
+            "右极限": "right",
+            "left": "left",
+            "left-sided": "left",
+            "左": "left",
+            "左极限": "left",
+        }
+        if text not in aliases:
+            return {"error": "方向只能是 auto、both、right 或 left。"}
+        return {"direction": aliases[text]}
+
+    def _is_nonanalytic_at_center(
+        self, parsed: sp.Basic, symbol: sp.Symbol, center: sp.Basic
+    ) -> bool:
+        """判断函数在趋近点是否不是解析函数（如 log/sqrt 在 0 处）。"""
+        for node in sp.preorder_traversal(parsed):
+            try:
+                if node.func == sp.log:
+                    if node.args[0].subs(symbol, center) == 0:
+                        return True
+                elif node.func == sp.sqrt:
+                    if node.args[0].subs(symbol, center) == 0:
+                        return True
+                elif node.func == sp.Pow:
+                    base, exp = node.args
+                    if (
+                        base.subs(symbol, center) == 0
+                        and getattr(exp, "is_rational", False)
+                        and getattr(exp, "q", 1) != 1
+                    ):
+                        return True
+            except Exception:  # noqa: BLE001 - 单个节点判断失败不影响其它节点
+                continue
+        return False
+
+    def _limit_direction_symbol(self, direction: str) -> str:
+        return {"right": "+", "left": "-"}.get(direction, "both")
+
     # -------------------------------------------------------------- analyze
 
     def _analyze(
@@ -339,6 +392,7 @@ class MathEngine:
         center: sp.Basic,
         max_order: int,
         raw: str | None = None,
+        direction: str = "auto",
     ) -> dict[str, Any]:
         started = time.perf_counter()
         symbol = sp.Symbol("x", real=True)
@@ -389,6 +443,12 @@ class MathEngine:
             raise ValueError(f"出现未允许的变量：{names}。只允许 x。")
 
         at_infinity = center in (sp.oo, -sp.oo)
+        non_analytic = self._is_nonanalytic_at_center(parsed, symbol, center)
+        effective_direction = direction
+        if effective_direction == "auto":
+            effective_direction = "right" if non_analytic else "both"
+        direction_symbol = self._limit_direction_symbol(effective_direction)
+        direction_label = {"right": "右极限", "left": "左极限", "both": "双侧极限"}[effective_direction]
         steps: list[dict[str, Any]] = []
         if not at_infinity:
             for order in range(1, max_order + 1):
@@ -420,15 +480,29 @@ class MathEngine:
                         }
                     )
 
-        limit_value = sp.limit(parsed, symbol, center)
+        if effective_direction == "both":
+            limit_value = sp.limit(parsed, symbol, center)
+        else:
+            limit_value = sp.limit(parsed, symbol, center, dir=direction_symbol)
         limit_kind, limit_note = self._classify_limit(limit_value)
-        if limit_kind == "converged" and not at_infinity:
-            left = self._try_directional_limit(parsed, symbol, center)
-            if left is not None and self._limits_differ(limit_value, left):
+        if non_analytic and effective_direction != "both":
+            limit_note = (
+                f"按{direction_label}计算。函数在 x={center} 附近不是解析函数，"
+                "标准双侧极限与泰勒展开不适用。"
+            )
+        if effective_direction == "both" and not at_infinity:
+            right = self._try_directional_limit(parsed, symbol, center, "+")
+            left = self._try_directional_limit(parsed, symbol, center, "-")
+            if right is not None and left is not None and self._limits_differ(right, left):
                 limit_kind = "one_sided"
                 limit_note = (
-                    f"左右极限不一致：x→{center}⁺ 为 {limit_value}，"
+                    f"左右极限不一致：x→{center}⁺ 为 {right}，"
                     f"x→{center}⁻ 为 {left}。双侧极限不存在。"
+                )
+            elif non_analytic and limit_kind in {"undefined", "divergent"}:
+                limit_note = (
+                    f"函数在 x={center} 附近不是解析函数；双侧极限不适用，"
+                    f"请改用右极限或左极限。"
                 )
 
         limit_approx = ""
@@ -469,6 +543,8 @@ class MathEngine:
             center_latex=center_latex,
             max_order=max_order,
             at_infinity=at_infinity,
+            direction_label=direction_label,
+            non_analytic=non_analytic,
         )
 
         return {
@@ -485,6 +561,10 @@ class MathEngine:
             "limit_exists": limit_kind == "converged",
             "limit_kind": limit_kind,
             "limit_note": limit_note,
+            "direction": effective_direction,
+            "direction_label": direction_label,
+            "non_analytic": non_analytic,
+            "taylor_applicable": not non_analytic,
             "first_nonzero_order": first_nonzero,
             "steps": steps,
             "plot": plot,
@@ -495,11 +575,15 @@ class MathEngine:
         }
 
     def _try_directional_limit(
-        self, parsed: sp.Basic, symbol: sp.Symbol, center: sp.Basic
+        self,
+        parsed: sp.Basic,
+        symbol: sp.Symbol,
+        center: sp.Basic,
+        direction: str,
     ) -> Any:
         try:
-            return sp.limit(parsed, symbol, center, "-")
-        except Exception:  # noqa: BLE001 - 左极限求不出时退化为单侧判断
+            return sp.limit(parsed, symbol, center, dir=direction)
+        except Exception:  # noqa: BLE001 - 单侧极限求不出时退化为不可用
             return None
 
     def _limits_differ(self, right: Any, left: Any) -> bool:
@@ -613,6 +697,8 @@ class MathEngine:
         center_latex: str,
         max_order: int,
         at_infinity: bool,
+        direction_label: str = "双侧极限",
+        non_analytic: bool = False,
     ) -> str:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         kind_text = {
@@ -627,7 +713,7 @@ class MathEngine:
             "",
             "> 由 **自由计算器 v1.1.0 / 泰勒极限观测引擎** 在本机离线生成。",
             f"> 计算时间：{now} · 耗时：{elapsed_ms} ms · 引擎：SymPy {sp.__version__}",
-            f"> 趋近点：$x \\to {center_latex}$ · 展开阶数：1–{max_order}",
+            f"> 趋近点：$x \\to {center_latex}$ · {direction_label} · 展开阶数：1–{max_order}",
             "",
             "## 输入",
             "",
@@ -644,7 +730,17 @@ class MathEngine:
         ]
         if limit_note:
             lines.append(f"- 说明：{limit_note}")
-        lines += ["", f"## 1–{max_order} 阶泰勒展开观测", ""]
+        lines += [
+            "",
+            f"## 1–{max_order} 阶{'形式展开（非泰勒）' if non_analytic else '泰勒展开'}观测",
+            "",
+        ]
+        if non_analytic:
+            lines.append(
+                "函数在趋近点附近不是解析函数，标准泰勒展开不适用；"
+                "下表是 SymPy 的形式展开，仅用于观察主导项。"
+            )
+            lines.append("")
         if at_infinity:
             lines += ["趋近点为无穷，泰勒展开不适用，此处仅给出极限结论。", ""]
         else:
@@ -672,9 +768,14 @@ class MathEngine:
             )
         else:
             lines.append(
-                f"最早在 **{first_nonzero} 阶** 截断的泰勒展开中，代入 "
+                f"最早在 **{first_nonzero} 阶** 截断的"
+                f"{'形式展开' if non_analytic else '泰勒展开'}中，代入 "
                 f"$x={center_latex}$ 得到非零值；该值对应极限候选。"
             )
+            if non_analytic:
+                lines.append(
+                    "注意：该函数在趋近点非解析，不能把这里的截断展开当作严格泰勒级数。"
+                )
         lines.append(
             "每阶均使用 `sympy.series(..., x, 趋近点, 阶数).removeO()` 去掉大 O 余项后再代入。"
         )

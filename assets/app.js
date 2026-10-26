@@ -5,9 +5,11 @@
   var input = document.getElementById("expression");
   var centerInput = document.getElementById("centerInput");
   var orderSelect = document.getElementById("orderSelect");
+  var directionSelect = document.getElementById("directionSelect");
   var observeBtn = document.getElementById("observeBtn");
   var resultSection = document.getElementById("resultSection");
   var limitFormula = document.getElementById("limitFormula");
+  var limitLabel = document.getElementById("limitLabel");
   var limitStatus = document.getElementById("limitStatus");
   var limitNote = document.getElementById("limitNote");
   var limitApprox = document.getElementById("limitApprox");
@@ -54,6 +56,22 @@
     one_sided: "左右不一致",
     undefined: "未定"
   };
+
+  var LIMIT_KIND_LABEL = {
+    converged: "LIMIT FOUND",
+    divergent: "DIVERGES",
+    oscillating: "NO LIMIT",
+    one_sided: "ONE-SIDED",
+    undefined: "UNDEFINED"
+  };
+
+  var heroMascot = document.getElementById("heroMascot");
+  if (heroMascot) {
+    var mascotFile = document.documentElement.dataset.mascotFile;
+    if (mascotFile) {
+      heroMascot.src = "assets/img/" + mascotFile;
+    }
+  }
 
   function setApiStatus(state, text) {
     apiStatus.dataset.state = state;
@@ -186,13 +204,18 @@
       (result.limit_exists === false ? "未收敛" : "收敛");
     limitStatus.textContent = text;
     limitStatus.classList.toggle("is-warn", kind !== "converged");
+    if (limitLabel) {
+      limitLabel.textContent = LIMIT_KIND_LABEL[kind] || "LIMIT";
+    }
   }
 
   function buildLimitSentence(result) {
     var expressionLatex = result.expression_latex || "f(x)";
     var valueLatex = result.limit_latex || "\\text{无法确定}";
     var centerLatex = result.center_latex || "0";
-    return "\\lim_{x \\to " + centerLatex + "} " + expressionLatex + " = " + valueLatex;
+    var arrow =
+      result.direction === "right" ? "^{+}" : result.direction === "left" ? "^{-}" : "";
+    return "\\lim_{x \\to " + centerLatex + arrow + "} " + expressionLatex + " = " + valueLatex;
   }
 
   function formatTick(value) {
@@ -207,6 +230,18 @@
       text = text.replace(/0+$/, "").replace(/\.$/, "");
     }
     return text === "-0" ? "0" : text;
+  }
+
+  function niceStep(range, targetCount) {
+    var raw = range / Math.max(1, targetCount);
+    if (!isFinite(raw) || raw <= 0) {
+      return 1;
+    }
+    var magnitude = Math.pow(10, Math.floor(Math.log10(raw)));
+    var normalized = raw / magnitude;
+    var step =
+      normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+    return step * magnitude;
   }
 
   function cssColor(name, fallback) {
@@ -255,18 +290,24 @@
 
     ctx.font = '11px "Cascadia Code", Consolas, monospace';
     ctx.lineWidth = 1;
+
+    var yStep = niceStep(plot.y_max - plot.y_min, 4);
+    var yStart = Math.ceil(plot.y_min / yStep) * yStep;
+    var yCount = Math.floor((plot.y_max - yStart) / yStep + 1e-9) + 1;
     ctx.strokeStyle = cssColor("--line", "rgba(103,226,255,0.16)");
-    var ticks = 4;
-    for (var i = 0; i <= ticks; i += 1) {
-      var gy = pad.top + (plotH * i) / ticks;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (var yi = 0; yi < yCount; yi += 1) {
+      var yValue = yStart + yi * yStep;
+      var gy = sy(yValue);
+      if (gy < pad.top - 0.5 || gy > pad.top + plotH + 0.5) {
+        continue;
+      }
       ctx.beginPath();
       ctx.moveTo(pad.left, gy);
       ctx.lineTo(pad.left + plotW, gy);
       ctx.stroke();
       ctx.fillStyle = cssColor("--dim", "#54788b");
-      ctx.textAlign = "right";
-      ctx.textBaseline = "middle";
-      var yValue = plot.y_max - ((plot.y_max - plot.y_min) * i) / ticks;
       ctx.fillText(formatTick(yValue), pad.left - 8, gy);
     }
 
@@ -279,12 +320,18 @@
       ctx.stroke();
     }
 
+    var xStep = niceStep(plot.x_max - plot.x_min, 4);
+    var xStart = Math.ceil(plot.x_min / xStep) * xStep;
+    var xCount = Math.floor((plot.x_max - xStart) / xStep + 1e-9) + 1;
     ctx.fillStyle = cssColor("--dim", "#54788b");
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    for (var t = 0; t <= ticks; t += 1) {
-      var gx = pad.left + (plotW * t) / ticks;
-      var xValue = plot.x_min + ((plot.x_max - plot.x_min) * t) / ticks;
+    for (var xi = 0; xi < xCount; xi += 1) {
+      var xValue = xStart + xi * xStep;
+      var gx = sx(xValue);
+      if (gx < pad.left - 0.5 || gx > pad.left + plotW + 0.5) {
+        continue;
+      }
       ctx.fillText(formatTick(xValue), gx, pad.top + plotH + 8);
     }
 
@@ -414,7 +461,8 @@
     resultNormalized.textContent = normalized;
     resultNormalized.title = normalized;
     resultCenter.textContent =
-      "x → " + centerText + " · 1–" + (result.max_order || 6) + " 阶";
+      "x → " + centerText + " · " + (result.direction_label || "双侧极限") +
+      " · 1–" + (result.max_order || 6) + " 阶";
     resultEngine.textContent = result.engine || "SymPy";
 
     renderSteps(result.steps);
@@ -529,9 +577,10 @@
 
     var center = centerInput.value.trim() || "0";
     var order = orderSelect.value || "6";
+    var direction = directionSelect ? directionSelect.value : "auto";
 
     try {
-      var result = await window.pywebview.api.solve_limit(expression, center, order);
+      var result = await window.pywebview.api.solve_limit(expression, center, order, direction);
       if (!result || typeof result !== "object") {
         throw new Error("计算引擎返回了空结果。");
       }
@@ -584,9 +633,16 @@
     }, 500);
   }
 
+  var splashHideTimer = null;
+
   function hideSplash() {
-    if (!splash) {
+    if (!splash || splash.dataset.gone === "1") {
       return;
+    }
+    splash.dataset.gone = "1";
+    if (splashHideTimer) {
+      window.clearTimeout(splashHideTimer);
+      splashHideTimer = null;
     }
     splash.classList.add("is-gone");
     window.setTimeout(function () {
@@ -679,9 +735,18 @@
     }, 180);
   });
 
+  if (splash) {
+    splash.addEventListener("click", hideSplash);
+    splashHideTimer = window.setTimeout(hideSplash, 2750);
+  }
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && splash && splash.dataset.gone !== "1") {
+      hideSplash();
+    }
+  });
+
   window.addEventListener("pywebviewready", markApiReady);
   markApiReady();
   pollForApi();
-
-  window.setTimeout(hideSplash, 2750);
 })();

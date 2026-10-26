@@ -7,6 +7,7 @@
 - 默认示例：`(tan(x) - sin(x)) / x**3`，趋近 `0`，极限为 `1/2`。
 - 任意趋近点：`0`、`1`、`pi/2`、`-3`，或 `oo` / `-oo`（无穷远处只求极限，不做局部展开）。
 - `1`–`10` 阶 `sympy.series` 展开，每阶去掉大 O 余项并代入趋近点。
+- 极限方向可选：自动 / 右极限 / 左极限 / 双侧；`auto` 遇到 `sqrt(x)`、`log(x)` 这类非解析函数会自动改按右极限计算并提示。
 - 支持 `log(x, b)` 自定义底数，例如 `log(x, 10)`。
 - 支持隐式乘法：`2x`、`2(x+1)`、`(x+1)(x-1)`、`2sin(x)` 会自动补 `*`。
 - KaTeX 渲染表达式、极限与每一步展开。
@@ -17,8 +18,8 @@
 - 严格的字符/函数白名单，拒绝任意代码执行。
 - 左右极限自动比对，`abs(x)/x` 这类会明确标注「左右不一致」。
 - 异常写入 `crash.log`，界面返回可读错误。
-- 2.5 秒深海鲸鱼娘 CSS 开屏，不影响主界面。
-- 全部静态资源本地化：Pico.css、KaTeX CSS/JS、60 个 KaTeX 字体文件、鲸鱼娘立绘。
+- 2.5 秒深海鲸鱼娘 CSS 开屏，点击任意处或按 `Esc` 可跳过；每次启动随机一位（女仆 / Q 版 / 虎鲸娘），头像与背景立绘同步。
+- 全部静态资源本地化：Pico.css、KaTeX CSS/JS、20 个 woff2 字体文件、鲸鱼娘立绘。
 
 ## 环境要求
 
@@ -75,7 +76,7 @@ pyinstaller --noconsole --add-data "index.html;." --add-data "assets;assets" --a
 - 排除 torch / matplotlib / PyQt5 等无关重量级依赖
 - `--icon assets/app.ico`
 
-输出：`dist\FreeCalculator\FreeCalculator.exe`（exe 约 16.5 MB，完整目录约 81 MB）。必须保留整个 `FreeCalculator` 文件夹（含 `_internal`），不能只复制 exe。
+输出：`dist\FreeCalculator\FreeCalculator.exe`（exe 约 15 MB，完整目录约 38 MB）。已排除 numpy（减少约 42 MB）与陈旧的 `core\__pycache__`，字体只保留 woff2。必须保留整个 `FreeCalculator` 文件夹（含 `_internal`），不能只复制 exe。
 
 当前已部署到普通用户目录：
 

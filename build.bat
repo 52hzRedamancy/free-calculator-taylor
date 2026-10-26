@@ -10,6 +10,9 @@ echo ============================================================
 
 if exist "dist\FreeCalculator.exe" del /q "dist\FreeCalculator.exe"
 
+rem 不把本地字节码缓存打进包，避免陈旧 pyc
+if exist "core\__pycache__" rmdir /s /q "core\__pycache__"
+
 pyinstaller --noconfirm --clean --noconsole ^
   --add-data "index.html;." ^
   --add-data "assets;assets" ^
@@ -22,6 +25,7 @@ pyinstaller --noconfirm --clean --noconsole ^
   --hidden-import webview.platforms.mshtml ^
   --hidden-import clr ^
   --hidden-import pythonnet ^
+  --exclude-module numpy ^
   --exclude-module torch ^
   --exclude-module torchvision ^
   --exclude-module torchaudio ^
