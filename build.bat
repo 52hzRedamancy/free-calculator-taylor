@@ -5,7 +5,7 @@ cd /d "%~dp0"
 set PYTHONUTF8=1
 
 echo ============================================================
-echo   FreeCalculator v1.1.0 - PyInstaller onedir build
+echo   FreeCalculator v1.2.0 - PyInstaller onedir build
 echo ============================================================
 
 if exist "dist\FreeCalculator.exe" del /q "dist\FreeCalculator.exe"

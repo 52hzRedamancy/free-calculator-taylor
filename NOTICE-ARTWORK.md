@@ -18,6 +18,17 @@
 
 这些美术资源采用 **CC BY-NC-SA 4.0** 许可，**禁止商业使用**；使用时请保留署名链。它们不属于本项目 MIT 许可的范围。
 
+## 开屏 v1.2 素材
+
+以下文件取自 [@smalltailqwq/dsh-client-ui-skin-maid-atelier](https://github.com/Small-tailqwq/dsh-deep-whale)（深海女仆工坊）的运行时素材，经等比缩放与 WebP 压缩：
+
+- `assets/img/maid_hall.webp`（女仆工坊大厅背景）
+- `assets/img/maid_pose_a.webp`、`assets/img/maid_pose_b.webp`（双女仆立绘）
+
+署名链：角色原案 **上善**（Pixiv 62155430）→ 女仆装再设计 **ZipZipPipe**（Pixiv 18604994）→ 素材 **Small-tailqwq**。
+
+同样采用 **CC BY-NC-SA 4.0**，**禁止商业使用**；不属于本项目 MIT 许可的范围。
+
 ## 第三方前端资源
 
 - KaTeX（CSS / JS / 字体）：MIT License

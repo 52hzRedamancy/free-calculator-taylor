@@ -13,6 +13,7 @@
   var directionSelect = document.getElementById("directionSelect");
   var skinSelect = document.getElementById("skinSelect");
   var motionSelect = document.getElementById("motionSelect");
+  var splashSelect = document.getElementById("splashSelect");
   var replayPlotBtn = document.getElementById("replayPlotBtn");
   var observeBtn = document.getElementById("observeBtn");
   var resultSection = document.getElementById("resultSection");
@@ -835,7 +836,29 @@
     runObservation();
   });
 
+  function expandLogTemplate(element) {
+    var value = element.value;
+    var caret = element.selectionStart;
+    if (typeof caret !== "number" || caret < 4) {
+      return false;
+    }
+    var head = value.slice(0, caret);
+    if (!/(^|[^A-Za-z_])log\($/i.test(head)) {
+      return false;
+    }
+    var after = value.slice(caret);
+    var nextChar = after.charAt(0);
+    if (after && nextChar !== ")" && nextChar !== " ") {
+      return false;
+    }
+    var insert = nextChar === ")" ? "x, " : "x, )";
+    element.value = head + insert + after;
+    element.setSelectionRange(head.length + 3, head.length + 3);
+    return true;
+  }
+
   input.addEventListener("input", function () {
+    expandLogTemplate(input);
     userInteracted = true;
     clearError();
   });
@@ -919,6 +942,20 @@
     applySkin(localStorage.getItem("freecalc.skin") || "maid");
   }
 
+  if (splashSelect) {
+    var savedSplash = parseFloat(localStorage.getItem("freecalc.splash"));
+    if (!isFinite(savedSplash)) {
+      savedSplash = 3;
+    }
+    savedSplash = Math.min(3, Math.max(1, Math.round(savedSplash)));
+    splashSelect.value = String(savedSplash);
+    splashSelect.addEventListener("change", function () {
+      try {
+        localStorage.setItem("freecalc.splash", splashSelect.value);
+      } catch (error) {}
+    });
+  }
+
   if (motionSelect) {
     motionSelect.value = motionMode === "static" ? "static" : "animated";
     motionSelect.addEventListener("change", function () {
@@ -971,7 +1008,12 @@
 
   if (splash) {
     splash.addEventListener("click", hideSplash);
-    splashHideTimer = window.setTimeout(hideSplash, 2750);
+    var splashSeconds = parseFloat(splash.dataset.duration);
+    if (!isFinite(splashSeconds)) {
+      splashSeconds = 2.75;
+    }
+    splashSeconds = Math.min(3, Math.max(1, splashSeconds));
+    splashHideTimer = window.setTimeout(hideSplash, splashSeconds * 1000);
   }
 
   document.addEventListener("keydown", function (event) {

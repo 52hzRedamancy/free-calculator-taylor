@@ -4,23 +4,34 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>自由计算器 v1.1.0 · 泰勒极限观测引擎</title>
+  <title>自由计算器 v1.2.0 · 泰勒极限观测引擎</title>
   <link rel="stylesheet" href="assets/pico.min.css">
   <link rel="stylesheet" href="assets/katex.min.css">
   <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/splash-v2.css">
 </head>
 <body>
   <div class="splash" id="splash" aria-hidden="true">
-    <div class="splash-grid"></div>
-    <div class="splash-glow"></div>
+    <div class="splash-scene">
+      <div class="splash-hall"></div>
+      <div class="splash-figure splash-figure-left">
+        <img class="splash-chara" src="assets/img/maid_pose_a.webp" alt="">
+      </div>
+      <div class="splash-figure splash-figure-right">
+        <img class="splash-chara" src="assets/img/maid_pose_b.webp" alt="">
+      </div>
+      <img class="splash-whale" id="splashWhale" src="assets/img/maid_whale.png" alt="">
+      <div class="splash-particles" id="splashParticles"></div>
+      <div class="splash-scan"></div>
+    </div>
     <div class="splash-copy">
-      <span class="splash-kicker">DEEP-SEA COMPUTATION</span>
+      <span class="splash-kicker">ABYSSAL MAID ATELIER · DEEP-SEA COMPUTATION</span>
       <h1>自由计算器</h1>
       <p>TAYLOR LIMIT OBSERVATION ENGINE</p>
       <div class="splash-loader"><span></span></div>
       <small>正在唤醒鲸鱼娘 · 载入本地数学引擎</small>
     </div>
-    <img class="splash-whale" id="splashWhale" src="assets/img/maid_whale.png" alt="">
+    <span class="splash-badge">WHALE-01 // BOOT SEQUENCE</span>
     <span class="splash-skip">点击任意处 / Esc 跳过</span>
     <script>
       (function () {
@@ -29,22 +40,58 @@
           history.scrollRestoration = "manual";
         }
         window.scrollTo(0, 0);
-        var skins = {
+
+        var SKINS = {
           maid: "maid_whale.png",
           orca: "orca_whale.png",
           chibi: "chibi_whale.png"
         };
         var skin = localStorage.getItem("freecalc.skin") || "maid";
-        if (!skins[skin]) skin = "maid";
+        if (!SKINS[skin]) skin = "maid";
         document.documentElement.dataset.skin = skin;
-        document.documentElement.dataset.mascotFile = skins[skin];
+        document.documentElement.dataset.mascotFile = SKINS[skin];
         document.documentElement.style.setProperty(
           "--mascot-bg",
-          'url("assets/img/' + skins[skin] + '")'
+          'url("assets/img/' + SKINS[skin] + '")'
         );
+
         var whale = document.getElementById("splashWhale");
         if (whale) {
-          whale.src = "assets/img/" + skins[skin];
+          whale.src = "assets/img/" + SKINS[skin];
+        }
+
+        var duration = parseFloat(localStorage.getItem("freecalc.splash"));
+        if (!isFinite(duration) || duration <= 0) duration = 3;
+        duration = Math.min(3, Math.max(1, duration));
+
+        var splash = document.getElementById("splash");
+        if (splash) {
+          splash.style.setProperty("--splash-dur", duration + "s");
+          splash.dataset.duration = String(duration);
+
+          var host = document.getElementById("splashParticles");
+          if (host) {
+            for (var i = 0; i < 30; i += 1) {
+              var dot = document.createElement("span");
+              dot.style.setProperty("--x", (Math.random() * 100).toFixed(2) + "%");
+              dot.style.setProperty("--d", (2.4 + Math.random() * 2.8).toFixed(2) + "s");
+              dot.style.setProperty("--delay", (-Math.random() * 5).toFixed(2) + "s");
+              dot.style.setProperty("--size", (1 + Math.random() * 2.6).toFixed(1) + "px");
+              host.appendChild(dot);
+            }
+          }
+
+          splash.addEventListener("mousemove", function (event) {
+            var rect = splash.getBoundingClientRect();
+            var mx = (event.clientX - rect.left) / rect.width - 0.5;
+            var my = (event.clientY - rect.top) / rect.height - 0.5;
+            splash.style.setProperty("--mx", mx.toFixed(3));
+            splash.style.setProperty("--my", my.toFixed(3));
+          });
+          splash.addEventListener("mouseleave", function () {
+            splash.style.setProperty("--mx", "0");
+            splash.style.setProperty("--my", "0");
+          });
         }
       })();
     </script>
@@ -58,7 +105,7 @@
       <div class="hero-copy">
         <div class="eyebrow">
           <span class="eyebrow-mark"></span>
-          FREE CALCULATOR <i>/</i> v1.1.0
+          FREE CALCULATOR <i>/</i> v1.2.0
         </div>
         <h1>自由计算器<span>泰勒极限观测引擎</span></h1>
         <p class="hero-lede">
@@ -84,6 +131,14 @@
             <select id="motionSelect">
               <option value="animated">动态</option>
               <option value="static">静态</option>
+            </select>
+          </label>
+          <label for="splashSelect">
+            开屏
+            <select id="splashSelect" title="下次启动生效">
+              <option value="1">1 秒</option>
+              <option value="2">2 秒</option>
+              <option value="3">3 秒</option>
             </select>
           </label>
         </div>
@@ -169,7 +224,7 @@
             </select>
           </label>
           <p class="input-hint" id="inputHint">
-            趋近点可填常数或 <code>oo</code>；<code>log(x, 10)</code> 指定底数；<code>2x</code> 会自动补乘号。
+            趋近点可填常数或 <code>oo</code>；输入 <code>log(</code> 会自动补出底数位 <code>log(x, ▮)</code>；<code>2x</code> 会自动补乘号。
           </p>
         </div>
       </form>

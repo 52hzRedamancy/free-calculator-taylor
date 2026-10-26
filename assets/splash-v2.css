@@ -1,0 +1,453 @@
+/* =========================================================
+   开屏 v1.2 · 深海女仆工坊 3D 全息启动
+   立绘与大厅背景来自 @smalltailqwq/dsh-client-ui-skin-maid-atelier
+   （CC BY-NC-SA 4.0，见 NOTICE-ARTWORK.md）
+   ========================================================= */
+
+.splash {
+  --splash-dur: 3s;
+  --mx: 0;
+  --my: 0;
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  overflow: hidden;
+  cursor: pointer;
+  background: #02060c;
+  perspective: 1200px;
+  perspective-origin: 50% 44%;
+  animation: none;
+  transition: opacity 0.6s ease, visibility 0.6s ease;
+  pointer-events: auto;
+}
+
+.splash.is-gone {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.splash-scene {
+  position: absolute;
+  inset: -3%;
+  transform-style: preserve-3d;
+  transform: rotateY(calc(var(--mx) * 2.6deg)) rotateX(calc(var(--my) * -2deg));
+  transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+  animation: scene-in calc(var(--splash-dur) * 0.38) ease both;
+}
+
+.splash-hall {
+  position: absolute;
+  inset: -5%;
+  background: url("img/maid_hall.webp") center 42% / cover no-repeat;
+  filter: saturate(0.82) brightness(0.74) contrast(1.04);
+  transform: translate3d(calc(var(--mx) * 16px), calc(var(--my) * 10px), -60px)
+    scale(1.07);
+  animation: hall-in calc(var(--splash-dur) * 0.48) ease both;
+}
+
+.splash-scene::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      104deg,
+      transparent 16%,
+      rgba(198, 242, 255, 0.1) 27%,
+      rgba(198, 242, 255, 0.02) 36%,
+      transparent 44%
+    ),
+    linear-gradient(
+      256deg,
+      transparent 14%,
+      rgba(198, 242, 255, 0.08) 26%,
+      transparent 40%
+    ),
+    radial-gradient(680px 520px at 50% 45%, rgba(74, 224, 255, 0.17), transparent 64%),
+    linear-gradient(
+      180deg,
+      rgba(2, 8, 15, 0.72) 0%,
+      rgba(3, 13, 23, 0.18) 38%,
+      rgba(1, 6, 13, 0.86) 100%
+    ),
+    radial-gradient(
+      ellipse 74% 64% at 50% 44%,
+      rgba(3, 11, 20, 0.04) 32%,
+      rgba(2, 8, 15, 0.72) 100%
+    ),
+    linear-gradient(
+      158deg,
+      rgba(10, 54, 94, 0.46) 0%,
+      rgba(4, 24, 46, 0.2) 48%,
+      rgba(2, 10, 22, 0.55) 100%
+    );
+}
+
+.splash-scene::after {
+  content: "";
+  position: absolute;
+  z-index: 6;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(130, 240, 255, 0.04) 0 1px,
+      transparent 1px 3px
+    ),
+    radial-gradient(
+      ellipse 78% 68% at 50% 44%,
+      transparent 36%,
+      rgba(0, 4, 9, 0.88) 100%
+    );
+}
+
+.splash-figure {
+  position: absolute;
+  z-index: 3;
+  bottom: -6vh;
+  height: 94vh;
+  aspect-ratio: 895 / 1700;
+  opacity: 0;
+  animation: figure-in calc(var(--splash-dur) * 0.4) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.splash-figure-left {
+  left: -6vw;
+  transform: translate3d(
+      calc(var(--mx) * -30px),
+      calc(var(--my) * -14px),
+      0
+    )
+    rotateY(calc(var(--mx) * 3deg));
+  animation-delay: calc(var(--splash-dur) * 0.03);
+}
+
+.splash-figure-right {
+  right: -6vw;
+  height: 88vh;
+  transform: translate3d(calc(var(--mx) * 34px), calc(var(--my) * 18px), 0)
+    rotateY(calc(var(--mx) * -3deg));
+  animation-delay: calc(var(--splash-dur) * 0.08);
+}
+
+.splash-chara {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  animation: chara-float 7.6s ease-in-out 0.9s infinite;
+  filter: drop-shadow(0 30px 46px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 24px rgba(86, 226, 255, 0.22));
+}
+
+.splash-whale {
+  display: none;
+  position: absolute;
+  z-index: 3;
+  right: -13vw;
+  bottom: -9vh;
+  width: auto;
+  height: 84vh;
+  opacity: 0.62;
+  filter: saturate(0.92) drop-shadow(0 24px 46px rgba(0, 0, 0, 0.5))
+    drop-shadow(0 0 40px rgba(66, 228, 255, 0.3));
+  animation: whale-in calc(var(--splash-dur) * 0.4) calc(var(--splash-dur) * 0.04) cubic-bezier(0.2, 0.8, 0.2, 1) both,
+    chara-float 8s ease-in-out 1.2s infinite;
+  -webkit-mask-image: linear-gradient(to left, #000 62%, rgba(0, 0, 0, 0.35) 88%, transparent);
+  mask-image: linear-gradient(to left, #000 62%, rgba(0, 0, 0, 0.35) 88%, transparent);
+}
+
+html:not([data-skin="maid"]) .splash-figure {
+  display: none;
+}
+
+html:not([data-skin="maid"]) .splash-whale {
+  display: block;
+}
+
+.splash-particles {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.splash-particles span {
+  position: absolute;
+  left: var(--x);
+  bottom: -6%;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: rgba(150, 242, 255, 0.9);
+  box-shadow: 0 0 10px rgba(120, 235, 255, 0.85), 0 0 22px rgba(80, 210, 255, 0.35);
+  opacity: 0;
+  animation: particle-rise var(--d) linear var(--delay) infinite;
+}
+
+.splash-scan {
+  position: absolute;
+  z-index: 7;
+  left: 0;
+  right: 0;
+  top: -20%;
+  height: 22%;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(120, 235, 255, 0.06) 45%,
+    rgba(180, 250, 255, 0.16) 50%,
+    transparent 55%
+  );
+  mix-blend-mode: screen;
+  animation: scan-sweep calc(var(--splash-dur) * 1.15) ease-in-out infinite;
+}
+
+.splash-copy {
+  position: relative;
+  z-index: 8;
+  width: min(660px, 88vw);
+  margin-top: -1vh;
+  text-align: center;
+  animation: copy-in calc(var(--splash-dur) * 0.34) calc(var(--splash-dur) * 0.06) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.splash-copy::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -16% -14%;
+  background: radial-gradient(
+    closest-side,
+    rgba(2, 9, 16, 0.62),
+    rgba(2, 9, 16, 0.28) 64%,
+    transparent
+  );
+  filter: blur(3px);
+  pointer-events: none;
+}
+
+.splash-kicker {
+  color: var(--mint);
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.32em;
+  text-shadow: 0 0 18px rgba(80, 230, 255, 0.5);
+}
+
+.splash-copy h1 {
+  margin: 0.36em 0 0.14em;
+  color: var(--ink);
+  font-size: clamp(2.9rem, 6.4vw, 5.4rem);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  background: linear-gradient(115deg, #fff 8%, #b9f8ff 44%, #59e7ff 82%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 70px rgba(65, 229, 255, 0.28);
+  animation: title-in calc(var(--splash-dur) * 0.4) calc(var(--splash-dur) * 0.1) cubic-bezier(0.2, 0.85, 0.2, 1) both;
+}
+
+.splash-copy p {
+  margin: 0.6rem 0 2rem;
+  color: #85b2c6;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.26em;
+  text-shadow: 0 1px 16px rgba(1, 8, 14, 0.9);
+}
+
+.splash-loader {
+  position: relative;
+  width: min(280px, 58vw);
+  height: 2px;
+  margin: 0 auto 1.1rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(100, 225, 255, 0.14);
+  box-shadow: 0 0 18px rgba(60, 220, 255, 0.18);
+}
+
+.splash-loader span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, var(--cyan), var(--mint));
+  box-shadow: 0 0 16px var(--cyan);
+  transform-origin: left;
+  animation: splash-load var(--splash-dur) cubic-bezier(0.35, 0, 0.2, 1) both;
+}
+
+.splash-copy small {
+  color: #8db4c4;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-shadow: 0 1px 14px rgba(1, 8, 14, 0.95);
+}
+
+.splash-badge {
+  position: absolute;
+  z-index: 8;
+  left: 30px;
+  bottom: 24px;
+  color: rgba(146, 206, 226, 0.6);
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.18em;
+}
+
+.splash-skip {
+  position: absolute;
+  z-index: 8;
+  right: 30px;
+  bottom: 24px;
+  color: rgba(148, 198, 218, 0.62);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.09em;
+  pointer-events: none;
+}
+
+@keyframes scene-in {
+  from {
+    opacity: 0;
+    transform: scale(1.06) rotateY(0deg) rotateX(0deg);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes hall-in {
+  from {
+    opacity: 0;
+    filter: saturate(0.4) brightness(0.2) contrast(1.06);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes figure-in {
+  from {
+    opacity: 0;
+    filter: blur(12px) brightness(0.62);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+@keyframes chara-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-11px);
+  }
+}
+
+@keyframes whale-in {
+  from {
+    opacity: 0;
+    transform: translate3d(46px, 26px, 0) scale(0.96);
+  }
+  to {
+    opacity: 0.96;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes particle-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.6);
+  }
+  14% {
+    opacity: 0.85;
+  }
+  78% {
+    opacity: 0.45;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-74vh) scale(1);
+  }
+}
+
+@keyframes scan-sweep {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(560%);
+    opacity: 0;
+  }
+}
+
+@keyframes copy-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes title-in {
+  from {
+    opacity: 0;
+    letter-spacing: -0.16em;
+    filter: blur(9px);
+  }
+  to {
+    opacity: 1;
+    letter-spacing: -0.045em;
+    filter: none;
+  }
+}
+
+@keyframes splash-load {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (max-width: 900px) {
+  .splash-figure-left {
+    left: -16vw;
+    height: 82vh;
+    opacity: 0.85;
+  }
+  .splash-figure-right {
+    right: -16vw;
+    height: 78vh;
+    opacity: 0.85;
+  }
+  .splash-copy h1 {
+    font-size: clamp(2.4rem, 9vw, 3.6rem);
+  }
+  .splash-kicker {
+    font-size: 0.55rem;
+    letter-spacing: 0.2em;
+  }
+}
