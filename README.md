@@ -137,3 +137,9 @@ WebView2 会弹出系统「另存为」对话框，选择位置即可保存 Mark
 - KaTeX：0.16.8
 - Pico.css：1.5.13
 - 前端：原生 HTML/CSS/JS，无构建步骤
+
+## 许可与素材
+
+- 代码：MIT，见 [LICENSE](LICENSE)。
+- 鲸鱼娘立绘：来自 Small-tailqwq/dsh-deep-whale，角色原案上善、女仆装再设计 ZipZipPipe，按 CC BY-NC-SA 4.0 非商业使用；详见 [NOTICE-ARTWORK.md](NOTICE-ARTWORK.md)。
+- KaTeX 与 Pico.css：各自 MIT 许可，全部本地化。
