@@ -1,4 +1,4 @@
-"""自由计算器 v1.0.0 - pywebview 桌面入口。"""
+"""自由计算器 v1.1.0 - pywebview 桌面入口。"""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def main() -> None:
     webview.settings["ALLOW_DOWNLOADS"] = True
 
     webview.create_window(
-        "自由计算器 v1.0.0",
+        "自由计算器 v1.1.0",
         index_file,
         js_api=MathEngine(),
         width=1180,

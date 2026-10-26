@@ -1,5 +1,5 @@
 /* =========================================================
-   自由计算器 v1.0.0 · 深海终端视觉
+   自由计算器 v1.1.0 · 深海终端视觉
    所有资源本地化：无 @import / 无远程字体 / 无 CDN
    ========================================================= */
 
@@ -680,6 +680,33 @@ body::after {
   font-size: 0.54rem;
 }
 
+.center-input {
+  flex: 0 0 82px;
+  width: 82px;
+  height: 58px;
+  margin: 0;
+  padding: 0 6px;
+  border: 0;
+  border-right: 1px solid rgba(105, 227, 255, 0.12);
+  border-radius: 0;
+  outline: 0;
+  color: var(--mint);
+  background: rgba(9, 28, 43, 0.55);
+  box-shadow: none;
+  font-family: var(--mono);
+  font-size: 0.84rem;
+  text-align: center;
+}
+
+.center-input:focus {
+  box-shadow: none;
+  outline: 0;
+}
+
+.center-input::placeholder {
+  color: #46697b;
+}
+
 #expression {
   width: 100%;
   min-width: 0;
@@ -1036,7 +1063,7 @@ body::after {
 
 .overview-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin-top: 10px;
 }
@@ -1095,6 +1122,37 @@ body::after {
   font-size: 0.68rem;
 }
 
+.plot-card {
+  margin-top: 10px;
+  padding: 22px 24px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.plot-wrap {
+  margin-top: 2px;
+  padding: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(105, 227, 255, 0.09);
+  border-radius: 12px;
+  background: rgba(3, 13, 22, 0.52);
+}
+
+.plot-wrap canvas {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+
+.plot-empty {
+  margin: 14px 0 2px;
+  color: var(--dim);
+  font-size: 0.72rem;
+}
+
 .table-wrap {
   overflow-x: auto;
   border: 1px solid rgba(105, 227, 255, 0.09);
@@ -1147,6 +1205,18 @@ body::after {
 
 .steps-table tbody tr {
   transition: background 0.18s ease;
+}
+
+.step-row {
+  animation: rise-in 0.34s ease both;
+}
+
+.limit-card.is-fresh {
+  animation: limit-pop 0.42s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+.results.is-fresh {
+  animation: rise-in 0.3s ease both;
 }
 
 .steps-table tbody tr:hover {
@@ -1226,6 +1296,57 @@ body::after {
   background: rgba(107, 70, 18, 0.12);
 }
 
+.param-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 10px;
+}
+
+.param-row .input-hint {
+  flex: 1 1 260px;
+  margin: 0;
+}
+
+#calcForm .order-field {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 6px 4px 13px;
+  border: 1px solid rgba(105, 227, 255, 0.16);
+  border-radius: 999px;
+  color: #8fb4c4;
+  background: rgba(6, 20, 32, 0.7);
+  font-size: 0.7rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+#calcForm .order-field select {
+  width: auto;
+  min-width: 74px;
+  margin: 0;
+  padding: 4px 30px 4px 10px;
+  border: 1px solid rgba(105, 227, 255, 0.14);
+  border-radius: 999px;
+  color: var(--cyan);
+  background-color: rgba(4, 15, 25, 0.92);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+#calcForm .order-field select:focus {
+  border-color: var(--line-strong);
+  box-shadow: 0 0 0 3px rgba(92, 233, 255, 0.08);
+  outline: 0;
+}
+
 .report-preview {
   margin-top: 10px;
   padding: 0 18px;
@@ -1279,6 +1400,32 @@ body::after {
 #downloadHint {
   color: #5b7f91;
   font-size: 0.66rem;
+}
+
+.ghost-btn {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 10px 13px;
+  border: 1px solid rgba(105, 227, 255, 0.26);
+  border-radius: 11px;
+  color: #bfeaf5;
+  background: rgba(6, 22, 35, 0.72);
+  box-shadow: none;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.ghost-btn:hover {
+  border-color: var(--line-strong);
+  color: var(--cyan);
+  background: rgba(10, 34, 51, 0.9);
+}
+
+.ghost-btn:focus-visible {
+  outline: 2px solid var(--mint);
+  outline-offset: 2px;
 }
 
 /* ---------------- Footer ---------------- */
@@ -1345,6 +1492,17 @@ body::after {
   }
 }
 
+@keyframes limit-pop {
+  from {
+    transform: translateY(8px) scale(0.994);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
 @media (max-width: 900px) {
   .hero {
     grid-template-columns: minmax(0, 1fr) 180px;
@@ -1359,6 +1517,10 @@ body::after {
 
   .input-row {
     grid-template-columns: minmax(0, 1fr) 148px;
+  }
+
+  .overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .app-shell {
@@ -1396,7 +1558,8 @@ body::after {
   }
 
   .panel,
-  .steps-card {
+  .steps-card,
+  .plot-card {
     padding: 20px;
   }
 

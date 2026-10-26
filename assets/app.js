@@ -3,20 +3,32 @@
 
   var form = document.getElementById("calcForm");
   var input = document.getElementById("expression");
+  var centerInput = document.getElementById("centerInput");
+  var orderSelect = document.getElementById("orderSelect");
   var observeBtn = document.getElementById("observeBtn");
   var resultSection = document.getElementById("resultSection");
   var limitFormula = document.getElementById("limitFormula");
   var limitStatus = document.getElementById("limitStatus");
   var limitNote = document.getElementById("limitNote");
   var limitApprox = document.getElementById("limitApprox");
+  var limitCard = document.querySelector(".limit-card");
   var resultTime = document.getElementById("resultTime");
   var resultExpression = document.getElementById("resultExpression");
   var resultNormalized = document.getElementById("resultNormalized");
+  var resultCenter = document.getElementById("resultCenter");
   var resultEngine = document.getElementById("resultEngine");
   var stepsBody = document.getElementById("stepsBody");
+  var centerColLabel = document.getElementById("centerColLabel");
+  var stepsCenterText = document.getElementById("stepsCenterText");
+  var plotCenterLabel = document.getElementById("plotCenterLabel");
+  var plotCanvas = document.getElementById("plotCanvas");
+  var plotEmpty = document.getElementById("plotEmpty");
   var reportPreview = document.getElementById("reportPreview");
   var downloadBtn = document.getElementById("downloadBtn");
   var downloadHint = document.getElementById("downloadHint");
+  var copyLatexBtn = document.getElementById("copyLatexBtn");
+  var copyResultBtn = document.getElementById("copyResultBtn");
+  var copyReportBtn = document.getElementById("copyReportBtn");
   var errorBox = document.getElementById("errorBox");
   var errorText = document.getElementById("errorText");
   var apiStatus = document.getElementById("apiStatus");
@@ -31,6 +43,17 @@
   var pollTimer = null;
   var lastReport = "";
   var lastFilename = "FreeCalculator_Taylor_Report.md";
+  var lastLatex = "";
+  var lastResultText = "";
+  var lastPlot = null;
+
+  var LIMIT_KIND_TEXT = {
+    converged: "收敛",
+    divergent: "发散",
+    oscillating: "振荡",
+    one_sided: "左右不一致",
+    undefined: "未定"
+  };
 
   function setApiStatus(state, text) {
     apiStatus.dataset.state = state;
@@ -42,7 +65,10 @@
     errorBox.hidden = false;
     resultSection.hidden = true;
     downloadBtn.style.display = "none";
-    downloadHint.textContent = "报告包含输入、极限结论与 1–6 阶完整推导。";
+    copyLatexBtn.style.display = "none";
+    copyResultBtn.style.display = "none";
+    copyReportBtn.style.display = "none";
+    downloadHint.textContent = "报告包含输入、极限结论与完整逐阶推导。";
     lastReport = "";
   }
 
@@ -100,14 +126,16 @@
       var emptyRow = document.createElement("tr");
       var emptyCell = document.createElement("td");
       emptyCell.colSpan = 4;
-      emptyCell.textContent = "没有可用的展开步骤。";
+      emptyCell.textContent = "趋近点为无穷时不适用泰勒展开，仅给出极限结论。";
       emptyRow.appendChild(emptyCell);
       stepsBody.appendChild(emptyRow);
       return;
     }
 
-    steps.forEach(function (step) {
+    steps.forEach(function (step, index) {
       var row = document.createElement("tr");
+      row.className = "step-row";
+      row.style.animationDelay = index * 45 + "ms";
 
       var orderCell = document.createElement("td");
       orderCell.appendChild(
@@ -152,30 +180,211 @@
   }
 
   function formatLimitStatus(result) {
-    var text = String(result.limit_text || "");
-    var isInfinite = /oo|zoo|∞/.test(text);
-    if (result.limit_exists === false) {
-      limitStatus.textContent = "未收敛";
-      limitStatus.classList.add("is-warn");
-    } else if (isInfinite) {
-      limitStatus.textContent = "发散";
-      limitStatus.classList.add("is-warn");
-    } else {
-      limitStatus.textContent = "收敛";
-      limitStatus.classList.remove("is-warn");
-    }
+    var kind = result.limit_kind;
+    var text =
+      LIMIT_KIND_TEXT[kind] ||
+      (result.limit_exists === false ? "未收敛" : "收敛");
+    limitStatus.textContent = text;
+    limitStatus.classList.toggle("is-warn", kind !== "converged");
   }
 
   function buildLimitSentence(result) {
     var expressionLatex = result.expression_latex || "f(x)";
     var valueLatex = result.limit_latex || "\\text{无法确定}";
-    return "\\lim_{x \\to 0} " + expressionLatex + " = " + valueLatex;
+    var centerLatex = result.center_latex || "0";
+    return "\\lim_{x \\to " + centerLatex + "} " + expressionLatex + " = " + valueLatex;
+  }
+
+  function formatTick(value) {
+    if (!isFinite(value)) {
+      return "";
+    }
+    if (Math.abs(value) >= 10000 || (Math.abs(value) > 0 && Math.abs(value) < 0.001)) {
+      return value.toExponential(1);
+    }
+    var text = value.toFixed(2);
+    if (text.indexOf(".") >= 0) {
+      text = text.replace(/0+$/, "").replace(/\.$/, "");
+    }
+    return text === "-0" ? "0" : text;
+  }
+
+  function cssColor(name, fallback) {
+    var value = getComputedStyle(document.documentElement).getPropertyValue(name);
+    return value && value.trim() ? value.trim() : fallback;
+  }
+
+  function drawPlot(plot) {
+    if (!plotCanvas) {
+      return;
+    }
+    var wrap = plotCanvas.parentElement;
+    var width = Math.max(280, Math.round(wrap ? wrap.clientWidth : 640));
+    var height = 260;
+    var dpr = window.devicePixelRatio || 1;
+    plotCanvas.width = Math.round(width * dpr);
+    plotCanvas.height = Math.round(height * dpr);
+    plotCanvas.style.width = width + "px";
+    plotCanvas.style.height = height + "px";
+
+    var ctx = plotCanvas.getContext("2d");
+    if (!ctx) {
+      return;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    if (!plot || !plot.valid || !Array.isArray(plot.points) || !plot.points.length) {
+      plotCanvas.style.display = "none";
+      plotEmpty.hidden = false;
+      return;
+    }
+    plotCanvas.style.display = "block";
+    plotEmpty.hidden = true;
+
+    var pad = { left: 52, right: 18, top: 16, bottom: 30 };
+    var plotW = width - pad.left - pad.right;
+    var plotH = height - pad.top - pad.bottom;
+
+    function sx(x) {
+      return pad.left + ((x - plot.x_min) / (plot.x_max - plot.x_min)) * plotW;
+    }
+    function sy(y) {
+      return pad.top + plotH - ((y - plot.y_min) / (plot.y_max - plot.y_min)) * plotH;
+    }
+
+    ctx.font = '11px "Cascadia Code", Consolas, monospace';
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = cssColor("--line", "rgba(103,226,255,0.16)");
+    var ticks = 4;
+    for (var i = 0; i <= ticks; i += 1) {
+      var gy = pad.top + (plotH * i) / ticks;
+      ctx.beginPath();
+      ctx.moveTo(pad.left, gy);
+      ctx.lineTo(pad.left + plotW, gy);
+      ctx.stroke();
+      ctx.fillStyle = cssColor("--dim", "#54788b");
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      var yValue = plot.y_max - ((plot.y_max - plot.y_min) * i) / ticks;
+      ctx.fillText(formatTick(yValue), pad.left - 8, gy);
+    }
+
+    var zeroY = sy(0);
+    if (zeroY >= pad.top && zeroY <= pad.top + plotH) {
+      ctx.strokeStyle = cssColor("--line-strong", "rgba(103,226,255,0.38)");
+      ctx.beginPath();
+      ctx.moveTo(pad.left, zeroY);
+      ctx.lineTo(pad.left + plotW, zeroY);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = cssColor("--dim", "#54788b");
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    for (var t = 0; t <= ticks; t += 1) {
+      var gx = pad.left + (plotW * t) / ticks;
+      var xValue = plot.x_min + ((plot.x_max - plot.x_min) * t) / ticks;
+      ctx.fillText(formatTick(xValue), gx, pad.top + plotH + 8);
+    }
+
+    if (
+      typeof plot.center_x === "number" &&
+      plot.center_x >= plot.x_min &&
+      plot.center_x <= plot.x_max
+    ) {
+      ctx.save();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = cssColor("--gold", "#f3ca7c");
+      ctx.beginPath();
+      ctx.moveTo(sx(plot.center_x), pad.top);
+      ctx.lineTo(sx(plot.center_x), pad.top + plotH);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    var segments = [];
+    var current = [];
+    var previous = null;
+    var yRange = plot.y_max - plot.y_min;
+    plot.points.forEach(function (point) {
+      if (previous && Math.abs(point[1] - previous[1]) > yRange * 0.55) {
+        if (current.length) {
+          segments.push(current);
+        }
+        current = [];
+      }
+      current.push(point);
+      previous = point;
+    });
+    if (current.length) {
+      segments.push(current);
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(pad.left, pad.top, plotW, plotH);
+    ctx.clip();
+    ctx.strokeStyle = cssColor("--cyan", "#5ce9ff");
+    ctx.lineWidth = 1.6;
+    ctx.lineJoin = "round";
+    segments.forEach(function (segment) {
+      if (segment.length < 2) {
+        return;
+      }
+      ctx.beginPath();
+      segment.forEach(function (point, index) {
+        var px = sx(point[0]);
+        var py = sy(point[1]);
+        if (index === 0) {
+          ctx.moveTo(px, py);
+        } else {
+          ctx.lineTo(px, py);
+        }
+      });
+      ctx.stroke();
+    });
+    ctx.restore();
+
+    if (
+      typeof plot.center_x === "number" &&
+      plot.center_x >= plot.x_min &&
+      plot.center_x <= plot.x_max
+    ) {
+      ctx.fillStyle = cssColor("--gold", "#f3ca7c");
+      ctx.beginPath();
+      ctx.arc(sx(plot.center_x), pad.top + plotH / 2, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function updateCenterLabels(centerText) {
+    var label = "x = " + centerText;
+    if (centerColLabel) {
+      centerColLabel.textContent = label;
+    }
+    if (stepsCenterText) {
+      stepsCenterText.textContent = label;
+    }
+    if (plotCenterLabel) {
+      plotCenterLabel.textContent = label;
+    }
+  }
+
+  function replayAnimation(element) {
+    if (!element) {
+      return;
+    }
+    element.classList.remove("is-fresh");
+    void element.offsetWidth;
+    element.classList.add("is-fresh");
   }
 
   function renderResult(result) {
     var expression = result.expression || input.value.trim();
     var firstNonzero = result.first_nonzero_order;
     var note = result.limit_note || "";
+    var centerText = result.center_text || "0";
 
     if (!note) {
       if (firstNonzero) {
@@ -184,10 +393,11 @@
           firstNonzero +
           " 阶截断展开中出现非零值，极限候选已锁定。";
       } else {
-        note = "1–6 阶展开代入 x = 0 均为零，极限与零相容。";
+        note = "逐阶展开代入 x = " + centerText + " 均为零，极限与零相容。";
       }
     }
 
+    updateCenterLabels(centerText);
     renderMath(limitFormula, buildLimitSentence(result), true);
     formatLimitStatus(result);
     limitNote.textContent = note;
@@ -203,26 +413,94 @@
     var normalized = result.normalized || "—";
     resultNormalized.textContent = normalized;
     resultNormalized.title = normalized;
+    resultCenter.textContent =
+      "x → " + centerText + " · 1–" + (result.max_order || 6) + " 阶";
     resultEngine.textContent = result.engine || "SymPy";
 
     renderSteps(result.steps);
     reportPreview.textContent = result.raw_report || "";
     lastReport = result.raw_report || "";
-    lastFilename =
-      "Taylor_Limit_" +
-      expression
-        .replace(/[^A-Za-z0-9]+/g, "_")
-        .replace(/^_+|_+$/g, "")
-        .slice(0, 36) +
-      ".md";
-    if (!lastFilename || lastFilename === "Taylor_Limit_.md") {
-      lastFilename = "FreeCalculator_Taylor_Report.md";
-    }
+    lastFilename = result.report_filename || "FreeCalculator_Taylor_Report.md";
+    lastLatex =
+      "\\lim_{x \\to " +
+      (result.center_latex || "0") +
+      "} " +
+      (result.expression_latex || "") +
+      " = " +
+      (result.limit_latex || "");
+    lastResultText =
+      "lim(x→" +
+      centerText +
+      ") " +
+      expression +
+      " = " +
+      (result.limit_text || "?") +
+      "（" +
+      (LIMIT_KIND_TEXT[result.limit_kind] || "未知") +
+      "）";
 
+    lastPlot = result.plot || null;
     downloadBtn.style.display = lastReport ? "inline-flex" : "none";
-    downloadHint.textContent = "报告包含输入、极限结论与 1–6 阶完整推导。";
+    copyLatexBtn.style.display = lastLatex ? "inline-flex" : "none";
+    copyResultBtn.style.display = lastResultText ? "inline-flex" : "none";
+    copyReportBtn.style.display = lastReport ? "inline-flex" : "none";
+    downloadHint.textContent = "报告包含输入、极限结论与完整逐阶推导。";
     resultSection.hidden = false;
     errorBox.hidden = true;
+    replayAnimation(limitCard);
+    if (resultSection.classList) {
+      replayAnimation(resultSection);
+    }
+    drawPlot(lastPlot);
+  }
+
+  function copyText(text, label) {
+    if (!text) {
+      showError("当前没有可复制的内容。");
+      return;
+    }
+    function done(ok) {
+      if (ok) {
+        downloadHint.textContent = "已复制：" + label;
+        window.setTimeout(function () {
+          downloadHint.textContent = "报告包含输入、极限结论与完整逐阶推导。";
+        }, 2600);
+      } else {
+        downloadHint.textContent = "复制失败，请手动选中文本复制。";
+      }
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () {
+          done(true);
+        },
+        function () {
+          done(fallbackCopy(text));
+        }
+      );
+      return;
+    }
+    done(fallbackCopy(text));
+  }
+
+  function fallbackCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.left = "-9999px";
+    area.style.top = "0";
+    document.body.appendChild(area);
+    area.focus();
+    area.select();
+    var ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch (error) {
+      ok = false;
+    }
+    document.body.removeChild(area);
+    return ok;
   }
 
   async function runObservation() {
@@ -247,10 +525,13 @@
     autoRan = true;
     clearTimeout(autoRunTimer);
     setLoading(true);
-    setApiStatus("busy", "正在展开 1–6 阶泰勒级数…");
+    setApiStatus("busy", "正在展开泰勒级数…");
+
+    var center = centerInput.value.trim() || "0";
+    var order = orderSelect.value || "6";
 
     try {
-      var result = await window.pywebview.api.solve_limit(expression);
+      var result = await window.pywebview.api.solve_limit(expression, center, order);
       if (!result || typeof result !== "object") {
         throw new Error("计算引擎返回了空结果。");
       }
@@ -326,6 +607,11 @@
     clearError();
   });
 
+  centerInput.addEventListener("input", function () {
+    userInteracted = true;
+    clearError();
+  });
+
   input.addEventListener("keydown", function (event) {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
@@ -338,6 +624,8 @@
       userInteracted = true;
       autoRan = true;
       input.value = button.dataset.expression || "";
+      centerInput.value =
+        button.dataset.center !== undefined ? button.dataset.center : "0";
       clearError();
       runObservation();
     });
@@ -367,6 +655,28 @@
     } catch (error) {
       showError("无法生成下载文件：" + error.message);
     }
+  });
+
+  copyLatexBtn.addEventListener("click", function () {
+    copyText(lastLatex, "LaTeX 公式");
+  });
+
+  copyResultBtn.addEventListener("click", function () {
+    copyText(lastResultText, "极限结论");
+  });
+
+  copyReportBtn.addEventListener("click", function () {
+    copyText(lastReport, "Markdown 报告");
+  });
+
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(function () {
+      if (lastPlot) {
+        drawPlot(lastPlot);
+      }
+    }, 180);
   });
 
   window.addEventListener("pywebviewready", markApiReady);

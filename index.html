@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>自由计算器 v1.0.0 · 泰勒极限观测引擎</title>
+  <title>自由计算器 v1.1.0 · 泰勒极限观测引擎</title>
   <link rel="stylesheet" href="assets/pico.min.css">
   <link rel="stylesheet" href="assets/katex.min.css">
   <link rel="stylesheet" href="assets/style.css">
@@ -31,16 +31,16 @@
       <div class="hero-copy">
         <div class="eyebrow">
           <span class="eyebrow-mark"></span>
-          FREE CALCULATOR <i>/</i> v1.0.0
+          FREE CALCULATOR <i>/</i> v1.1.0
         </div>
         <h1>自由计算器<span>泰勒极限观测引擎</span></h1>
         <p class="hero-lede">
-          把极限拆成 1 到 6 阶泰勒展开，逐阶代入 <span class="inline-math">x = 0</span>，
-          看清函数在原点附近如何收敛。所有计算都在你的电脑上完成。
+          把极限拆成 1 到 10 阶泰勒展开，逐阶代入任意趋近点，
+          看清函数如何收敛。所有计算都在你的电脑上完成。
         </p>
         <div class="hero-badges" aria-label="产品特性">
           <span><b></b>本地 SymPy</span>
-          <span><b></b>5 秒超时护栏</span>
+          <span><b></b>任意趋近点</span>
           <span><b></b>KaTeX 离线渲染</span>
         </div>
       </div>
@@ -65,12 +65,24 @@
 
       <form id="calcForm" novalidate>
         <label for="expression">
-          关于 x 的表达式
-          <span>sin · cos · tan · exp · ln · log · pi · e</span>
+          关于 x 的表达式与趋近点
+          <span>sin · cos · tan · exp · ln · log · sqrt · abs · pi · e</span>
         </label>
         <div class="input-row">
           <div class="limit-input">
-            <span class="limit-tag">lim<small>x → 0</small></span>
+            <span class="limit-tag">lim<small>x →</small></span>
+            <input
+              id="centerInput"
+              class="center-input"
+              type="text"
+              value="0"
+              placeholder="0"
+              aria-label="趋近点"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              title="趋近点：常数（0、1、pi/2、-2…）或 oo"
+            >
             <input
               id="expression"
               name="expression"
@@ -85,9 +97,27 @@
           </div>
           <button type="submit" id="observeBtn">观测极限</button>
         </div>
-        <p class="input-hint" id="inputHint">
-          使用 <code>**</code> 表示乘方，例如 <code>x**3</code>；仅接受白名单内的函数与字符。
-        </p>
+
+        <div class="param-row">
+          <label class="order-field" for="orderSelect">
+            展开阶数
+            <select id="orderSelect" aria-label="展开阶数">
+              <option value="1">1 阶</option>
+              <option value="2">2 阶</option>
+              <option value="3">3 阶</option>
+              <option value="4">4 阶</option>
+              <option value="5">5 阶</option>
+              <option value="6" selected>6 阶</option>
+              <option value="7">7 阶</option>
+              <option value="8">8 阶</option>
+              <option value="9">9 阶</option>
+              <option value="10">10 阶</option>
+            </select>
+          </label>
+          <p class="input-hint" id="inputHint">
+            趋近点可填常数或 <code>oo</code>；<code>log(x, 10)</code> 指定底数；<code>2x</code> 会自动补乘号。
+          </p>
+        </div>
       </form>
 
       <div class="example-row" aria-label="示例表达式">
@@ -96,6 +126,10 @@
         <button type="button" class="example-chip" data-expression="sin(x) / x">sin(x)/x</button>
         <button type="button" class="example-chip" data-expression="(1 - cos(x)) / x**2">1 − cos</button>
         <button type="button" class="example-chip" data-expression="(exp(x) - 1 - x) / x**2">exp − 1</button>
+        <button type="button" class="example-chip" data-expression="log(x, 10) / (x - 1)" data-center="1">log 底数</button>
+        <button type="button" class="example-chip" data-expression="(x**2 - 1) / (x - 1)" data-center="1">趋近 1</button>
+        <button type="button" class="example-chip" data-expression="1 / x">发散</button>
+        <button type="button" class="example-chip" data-expression="sin(1 / x)">振荡</button>
       </div>
 
       <div class="engine-row">
@@ -127,7 +161,7 @@
         </div>
         <div class="limit-formula" id="limitFormula" aria-live="polite"></div>
         <div class="limit-foot">
-          <p id="limitNote">泰勒展开在原点附近稳定。</p>
+          <p id="limitNote">泰勒展开在趋近点附近稳定。</p>
           <span id="limitApprox"></span>
         </div>
       </article>
@@ -142,6 +176,10 @@
           <code id="resultNormalized">—</code>
         </article>
         <article class="mini-card">
+          <span>趋近点 / 阶数</span>
+          <code id="resultCenter">—</code>
+        </article>
+        <article class="mini-card">
           <span>计算引擎</span>
           <code id="resultEngine">—</code>
         </article>
@@ -153,7 +191,7 @@
             <span class="section-kicker">03 / TAYLOR TRACE</span>
             <h3>逐阶展开观测</h3>
           </div>
-          <p>每阶去除大 O 余项后，代入 <span class="inline-math">x = 0</span></p>
+          <p>每阶去除大 O 余项后，代入 <span class="inline-math" id="stepsCenterText">x = 0</span></p>
         </div>
         <div class="table-wrap">
           <table class="steps-table">
@@ -161,7 +199,7 @@
               <tr>
                 <th scope="col">阶数</th>
                 <th scope="col">泰勒展开</th>
-                <th scope="col">代入 x = 0</th>
+                <th scope="col">代入 <span id="centerColLabel">x = 0</span></th>
                 <th scope="col">是否为零</th>
               </tr>
             </thead>
@@ -170,14 +208,31 @@
         </div>
       </article>
 
+      <article class="plot-card">
+        <div class="steps-head">
+          <div>
+            <span class="section-kicker">04 / CURVE</span>
+            <h3>趋近点附近的函数曲线</h3>
+          </div>
+          <p>灰色虚线为 <span class="inline-math" id="plotCenterLabel">x = 0</span> · 本地采样</p>
+        </div>
+        <div class="plot-wrap">
+          <canvas id="plotCanvas" aria-label="函数在趋近点附近的曲线"></canvas>
+        </div>
+        <p class="plot-empty" id="plotEmpty" hidden>当前窗口内没有可用的采样点。</p>
+      </article>
+
       <details class="report-preview">
         <summary>预览 Markdown 推导报告</summary>
         <pre id="reportPreview"></pre>
       </details>
 
       <div class="result-actions">
-        <button id="downloadBtn" style="display:none;">📥 下载推导报告 (.md)</button>
-        <span id="downloadHint">报告包含输入、极限结论与 1–6 阶完整推导。</span>
+        <button id="downloadBtn" type="button" style="display:none;">📥 下载推导报告 (.md)</button>
+        <button id="copyLatexBtn" type="button" class="ghost-btn" style="display:none;">⧉ 复制 LaTeX</button>
+        <button id="copyResultBtn" type="button" class="ghost-btn" style="display:none;">⧉ 复制结论</button>
+        <button id="copyReportBtn" type="button" class="ghost-btn" style="display:none;">⧉ 复制报告</button>
+        <span id="downloadHint">报告包含输入、极限结论与完整逐阶推导。</span>
       </div>
     </section>
 
