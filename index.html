@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>自由计算器 v1.0.0 · 泰勒极限观测引擎</title>
+  <link rel="stylesheet" href="assets/pico.min.css">
+  <link rel="stylesheet" href="assets/katex.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="splash" id="splash" aria-hidden="true">
+    <div class="splash-grid"></div>
+    <div class="splash-glow"></div>
+    <div class="splash-copy">
+      <span class="splash-kicker">DEEP-SEA COMPUTATION</span>
+      <h1>自由计算器</h1>
+      <p>TAYLOR LIMIT OBSERVATION ENGINE</p>
+      <div class="splash-loader"><span></span></div>
+      <small>正在唤醒鲸鱼娘 · 载入本地数学引擎</small>
+    </div>
+    <img class="splash-whale" src="assets/img/maid_whale.png" alt="">
+  </div>
+
+  <div class="ambient-orb orb-a" aria-hidden="true"></div>
+  <div class="ambient-orb orb-b" aria-hidden="true"></div>
+
+  <main class="container app-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">
+          <span class="eyebrow-mark"></span>
+          FREE CALCULATOR <i>/</i> v1.0.0
+        </div>
+        <h1>自由计算器<span>泰勒极限观测引擎</span></h1>
+        <p class="hero-lede">
+          把极限拆成 1 到 6 阶泰勒展开，逐阶代入 <span class="inline-math">x = 0</span>，
+          看清函数在原点附近如何收敛。所有计算都在你的电脑上完成。
+        </p>
+        <div class="hero-badges" aria-label="产品特性">
+          <span><b></b>本地 SymPy</span>
+          <span><b></b>5 秒超时护栏</span>
+          <span><b></b>KaTeX 离线渲染</span>
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="orbit orbit-outer"></div>
+        <div class="orbit orbit-inner"></div>
+        <div class="mascot-halo"></div>
+        <img src="assets/img/chibi_whale.png" alt="">
+        <span class="art-tag">WHALE // ASSIST</span>
+        <span class="art-coord">00.000 / ∞</span>
+      </div>
+    </header>
+
+    <section class="panel console-card" aria-labelledby="inputTitle">
+      <div class="panel-heading">
+        <div>
+          <span class="section-kicker">01 / INPUT</span>
+          <h2 id="inputTitle">输入待观测函数</h2>
+        </div>
+        <span class="live-chip"><i></i>LOCAL ENGINE</span>
+      </div>
+
+      <form id="calcForm" novalidate>
+        <label for="expression">
+          关于 x 的表达式
+          <span>sin · cos · tan · exp · ln · log · pi · e</span>
+        </label>
+        <div class="input-row">
+          <div class="limit-input">
+            <span class="limit-tag">lim<small>x → 0</small></span>
+            <input
+              id="expression"
+              name="expression"
+              type="text"
+              value="(tan(x) - sin(x)) / x**3"
+              placeholder="(tan(x) - sin(x)) / x**3"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              aria-describedby="inputHint"
+            >
+          </div>
+          <button type="submit" id="observeBtn">观测极限</button>
+        </div>
+        <p class="input-hint" id="inputHint">
+          使用 <code>**</code> 表示乘方，例如 <code>x**3</code>；仅接受白名单内的函数与字符。
+        </p>
+      </form>
+
+      <div class="example-row" aria-label="示例表达式">
+        <span>试一试</span>
+        <button type="button" class="example-chip" data-expression="(tan(x) - sin(x)) / x**3">tan − sin</button>
+        <button type="button" class="example-chip" data-expression="sin(x) / x">sin(x)/x</button>
+        <button type="button" class="example-chip" data-expression="(1 - cos(x)) / x**2">1 − cos</button>
+        <button type="button" class="example-chip" data-expression="(exp(x) - 1 - x) / x**2">exp − 1</button>
+      </div>
+
+      <div class="engine-row">
+        <p id="apiStatus" class="api-status" data-state="waiting">
+          <span class="status-dot"></span><span id="apiStatusText">正在连接本地引擎…</span>
+        </p>
+        <p class="privacy-note">离线运行 · 不上传表达式</p>
+      </div>
+
+      <div class="error-box" id="errorBox" role="alert" hidden>
+        <span class="error-icon">!</span>
+        <p id="errorText"></p>
+      </div>
+    </section>
+
+    <section class="results" id="resultSection" aria-labelledby="resultTitle" hidden>
+      <div class="result-heading">
+        <div>
+          <span class="section-kicker">02 / OBSERVATION</span>
+          <h2 id="resultTitle">观测结果</h2>
+        </div>
+        <span class="result-time" id="resultTime">—</span>
+      </div>
+
+      <article class="limit-card">
+        <div class="limit-card-head">
+          <span class="limit-label">LIMIT FOUND</span>
+          <span class="limit-status" id="limitStatus">收敛</span>
+        </div>
+        <div class="limit-formula" id="limitFormula" aria-live="polite"></div>
+        <div class="limit-foot">
+          <p id="limitNote">泰勒展开在原点附近稳定。</p>
+          <span id="limitApprox"></span>
+        </div>
+      </article>
+
+      <div class="overview-grid">
+        <article class="mini-card">
+          <span>原始表达式</span>
+          <code id="resultExpression">—</code>
+        </article>
+        <article class="mini-card">
+          <span>SymPy 解析</span>
+          <code id="resultNormalized">—</code>
+        </article>
+        <article class="mini-card">
+          <span>计算引擎</span>
+          <code id="resultEngine">—</code>
+        </article>
+      </div>
+
+      <article class="steps-card">
+        <div class="steps-head">
+          <div>
+            <span class="section-kicker">03 / TAYLOR TRACE</span>
+            <h3>逐阶展开观测</h3>
+          </div>
+          <p>每阶去除大 O 余项后，代入 <span class="inline-math">x = 0</span></p>
+        </div>
+        <div class="table-wrap">
+          <table class="steps-table">
+            <thead>
+              <tr>
+                <th scope="col">阶数</th>
+                <th scope="col">泰勒展开</th>
+                <th scope="col">代入 x = 0</th>
+                <th scope="col">是否为零</th>
+              </tr>
+            </thead>
+            <tbody id="stepsBody"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <details class="report-preview">
+        <summary>预览 Markdown 推导报告</summary>
+        <pre id="reportPreview"></pre>
+      </details>
+
+      <div class="result-actions">
+        <button id="downloadBtn" style="display:none;">📥 下载推导报告 (.md)</button>
+        <span id="downloadHint">报告包含输入、极限结论与 1–6 阶完整推导。</span>
+      </div>
+    </section>
+
+    <footer class="site-footer">
+      <div class="footer-mark">
+        <img src="assets/img/orca_whale.png" alt="" aria-hidden="true">
+        <span>FREE CALCULATOR <i>·</i> TAYLOR LAB</span>
+      </div>
+      <p>本地计算 / 本地资源 / 无需网络 · Made with Pywebview + SymPy + KaTeX</p>
+    </footer>
+  </main>
+
+  <script src="assets/katex.min.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

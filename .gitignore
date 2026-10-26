@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.spec
+*.log
+.tmp/
+.dsh-meow/
+whale-roles/
+napcat-qr.png
