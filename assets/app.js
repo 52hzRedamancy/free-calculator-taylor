@@ -43,7 +43,7 @@
   var errorText = document.getElementById("errorText");
   var apiStatus = document.getElementById("apiStatus");
   var apiStatusText = document.getElementById("apiStatusText");
-  var splash = document.getElementById("splash");
+  var bootRoot = document.getElementById("dsh-startup-root");
 
   var busy = false;
   var apiReady = false;
@@ -59,7 +59,7 @@
   var motionMode = localStorage.getItem("freecalc.motion") || "animated";
   var plotAnimationId = 0;
   var plotAnimationStart = 0;
-  var splashGone = !splash;
+  var splashGone = !bootRoot;
   var plotVisible = false;
   var pendingPlotAnimation = false;
   var plotCard = document.querySelector(".plot-card");
@@ -78,10 +78,6 @@
       "--mascot-bg",
       'url("assets/img/' + SKIN_FILES[skin] + '")'
     );
-    var splashWhale = document.getElementById("splashWhale");
-    if (splashWhale) {
-      splashWhale.src = "assets/img/" + SKIN_FILES[skin];
-    }
     var hero = document.getElementById("heroMascot");
     if (hero) {
       hero.src = "assets/img/" + SKIN_FILES[skin];
@@ -808,31 +804,23 @@
     }, 500);
   }
 
-  var splashHideTimer = null;
-
-  function hideSplash() {
-    if (!splash || splash.dataset.gone === "1") {
+  function markBootDone() {
+    if (splashGone) {
       return;
     }
-    splash.dataset.gone = "1";
     splashGone = true;
     tryStartPlotAnimation();
-    var splashVideo = document.getElementById("splashVideo");
-    if (splashVideo) {
-      try {
-        splashVideo.pause();
-      } catch (error) {}
-    }
-    if (splashHideTimer) {
-      window.clearTimeout(splashHideTimer);
-      splashHideTimer = null;
-    }
-    splash.classList.add("is-gone");
-    window.setTimeout(function () {
-      if (splash && splash.parentNode) {
-        splash.parentNode.removeChild(splash);
+  }
+
+  if (bootRoot) {
+    window.addEventListener("dsh-startup:done", markBootDone);
+    var bootWatch = new MutationObserver(function () {
+      if (!document.getElementById("dsh-startup-root")) {
+        markBootDone();
+        bootWatch.disconnect();
       }
-    }, 420);
+    });
+    bootWatch.observe(document.body, { childList: true });
   }
 
   form.addEventListener("submit", function (event) {
@@ -1010,30 +998,6 @@
       applySkin(order[(index + 1) % order.length]);
     });
   }
-
-  if (splash) {
-    splash.addEventListener("click", hideSplash);
-    var splashVideo = document.getElementById("splashVideo");
-    if (splashVideo) {
-      splashVideo.addEventListener("ended", hideSplash);
-      splashVideo.addEventListener("error", function () {
-        splash.classList.add("is-video-failed");
-        if (splashHideTimer) {
-          window.clearTimeout(splashHideTimer);
-        }
-        splashHideTimer = window.setTimeout(hideSplash, 2600);
-      });
-      splashHideTimer = window.setTimeout(hideSplash, 30000);
-    } else {
-      splashHideTimer = window.setTimeout(hideSplash, 3000);
-    }
-  }
-
-  document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape" && splash && splash.dataset.gone !== "1") {
-      hideSplash();
-    }
-  });
 
   window.addEventListener("pywebviewready", markApiReady);
   markApiReady();

@@ -8,79 +8,54 @@
   <link rel="stylesheet" href="assets/pico.min.css">
   <link rel="stylesheet" href="assets/katex.min.css">
   <link rel="stylesheet" href="assets/style.css">
-  <link rel="stylesheet" href="assets/splash-v4.css">
+  <link rel="stylesheet" href="assets/page.css">
+  <link rel="stylesheet" href="assets/bootsuite/splash.css">
 </head>
 <body>
-  <div class="splash" id="splash" aria-hidden="true">
-    <video id="splashVideo" class="splash-video" src="assets/video/boot.mp4" preload="auto" playsinline></video>
-    <img class="splash-fallback" src="assets/img/deepseek_mode.webp" alt="">
-    <div class="splash-video-fade"></div>
-    <div class="splash-signature">
-      <span>DEEPSEEK · PROFESSIONAL WORK MODE</span>
-      <b>自由计算器</b>
-      <small>TAYLOR LIMIT OBSERVATION ENGINE</small>
-    </div>
-    <span class="splash-skip">点击任意处 / Esc 跳过</span>
-    <script>
-      (function () {
-        // 关掉 WebView2 的滚动位置恢复，避免一打开就停在半截页面
-        if ("scrollRestoration" in history) {
-          history.scrollRestoration = "manual";
-        }
-        window.scrollTo(0, 0);
+  <div id="dsh-startup-root" class="dsu-root dsu-boot"></div>
+  <script>
+    // 关掉 WebView2 的滚动位置恢复，避免一打开就停在半截页面
+    if ("scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
+    window.scrollTo(0, 0);
 
-        var SKINS = {
-          maid: "maid_whale.png",
-          orca: "orca_whale.png",
-          chibi: "chibi_whale.png"
-        };
-        var skin = localStorage.getItem("freecalc.skin") || "maid";
-        if (!SKINS[skin]) skin = "maid";
-        document.documentElement.dataset.skin = skin;
-        document.documentElement.dataset.mascotFile = SKINS[skin];
-        document.documentElement.style.setProperty(
-          "--mascot-bg",
-          'url("assets/img/' + SKINS[skin] + '")'
-        );
+    (function () {
+      var SKINS = {
+        maid: "maid_whale.png",
+        orca: "orca_whale.png",
+        chibi: "chibi_whale.png"
+      };
+      var skin = localStorage.getItem("freecalc.skin") || "maid";
+      if (!SKINS[skin]) skin = "maid";
+      document.documentElement.dataset.skin = skin;
+      document.documentElement.dataset.mascotFile = SKINS[skin];
+      document.documentElement.style.setProperty(
+        "--mascot-bg",
+        'url("assets/img/' + SKINS[skin] + '")'
+      );
+    })();
 
-        var video = document.getElementById("splashVideo");
-        if (!video) {
-          return;
-        }
-        video.volume = 0.6;
-
-        var tick = new Audio("assets/audio/sfx-tick.mp3");
-        tick.volume = 0.22;
-        var run = new Audio("assets/audio/sfx-ticks-run.mp3");
-        run.volume = 0.14;
-        var sounded = false;
-        function startSound() {
-          if (sounded) {
-            return;
-          }
-          sounded = true;
-          try {
-            tick.play();
-          } catch (error) {}
-          window.setTimeout(function () {
-            try {
-              run.play();
-            } catch (error) {}
-          }, 2600);
-        }
-
-        video.addEventListener("playing", startSound, { once: true });
-        var started = video.play();
-        if (started && started.catch) {
-          started.catch(function () {
-            video.muted = true;
-            video.play().catch(function () {});
-            startSound();
-          });
-        }
-      })();
-    </script>
-  </div>
+    // dsh-boot-suite v2.13.0 · 六幕冷启动动画
+    window.__DSH_STARTUP__ = {
+      enabled: true,
+      mode: "always",
+      theme: "light",
+      speed: 1.5,
+      requireInteraction: false,
+      allowSkip: true,
+      sound: true,
+      voice: false,
+      sfx: "synth",
+      identity: "WHALE-01",
+      identityId: "0001",
+      accessLevel: "3",
+      accent: "#ff7500",
+      glitchA: "#ff3b30",
+      glitchB: "#2971b8"
+    };
+  </script>
+  <script src="assets/bootsuite/splash.js"></script>
 
   <div class="page-art" aria-hidden="true"></div>
 
