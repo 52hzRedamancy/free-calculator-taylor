@@ -252,9 +252,10 @@ body::after {
 }
 
 .splash-copy small {
-  color: #557888;
+  color: #7fa6b8;
   font-size: 0.72rem;
   letter-spacing: 0.16em;
+  text-shadow: 0 1px 14px rgba(1, 8, 14, 0.95);
 }
 
 .splash-whale {
@@ -1482,6 +1483,7 @@ body::after {
 
 .site-footer p {
   margin: 0;
+  color: inherit;
   text-align: right;
 }
 
