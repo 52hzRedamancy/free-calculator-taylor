@@ -8,28 +8,32 @@
   <link rel="stylesheet" href="assets/pico.min.css">
   <link rel="stylesheet" href="assets/katex.min.css">
   <link rel="stylesheet" href="assets/style.css">
-  <link rel="stylesheet" href="assets/splash-v2.css">
+  <link rel="stylesheet" href="assets/splash-v3.css">
 </head>
 <body>
   <div class="splash" id="splash" aria-hidden="true">
     <div class="splash-scene">
-      <div class="splash-hall"></div>
-      <div class="splash-figure splash-figure-left">
-        <img class="splash-chara" src="assets/img/maid_pose_a.webp" alt="">
-      </div>
-      <div class="splash-figure splash-figure-right">
-        <img class="splash-chara" src="assets/img/maid_pose_b.webp" alt="">
-      </div>
-      <img class="splash-whale" id="splashWhale" src="assets/img/maid_whale.png" alt="">
+      <div class="splash-art"></div>
+      <div class="splash-wash"></div>
       <div class="splash-particles" id="splashParticles"></div>
       <div class="splash-scan"></div>
     </div>
+    <div class="splash-boot">
+      <span class="splash-boot-kicker">DEEPSEEK · AI ASSISTANT</span>
+      <div class="splash-boot-logo">DeepSeek</div>
+      <div class="splash-boot-welcome">欢迎来到专业工作模式</div>
+      <div class="splash-boot-en">PROFESSIONAL WORK MODE</div>
+      <div class="splash-term">
+        <span style="--d: 0">&gt; initializing dreams...</span>
+        <span style="--d: 1">&gt; loading local math engine...</span>
+        <span style="--d: 2">&gt; ready<span class="splash-caret">▌</span></span>
+      </div>
+    </div>
     <div class="splash-copy">
-      <span class="splash-kicker">ABYSSAL MAID ATELIER · DEEP-SEA COMPUTATION</span>
       <h1>自由计算器</h1>
-      <p>TAYLOR LIMIT OBSERVATION ENGINE</p>
+      <p>泰勒极限观测引擎 · 本地离线计算</p>
       <div class="splash-loader"><span></span></div>
-      <small>正在唤醒鲸鱼娘 · 载入本地数学引擎</small>
+      <small>正在载入本地数学引擎</small>
     </div>
     <span class="splash-badge">WHALE-01 // BOOT SEQUENCE</span>
     <span class="splash-skip">点击任意处 / Esc 跳过</span>
@@ -54,11 +58,6 @@
           "--mascot-bg",
           'url("assets/img/' + SKINS[skin] + '")'
         );
-
-        var whale = document.getElementById("splashWhale");
-        if (whale) {
-          whale.src = "assets/img/" + SKINS[skin];
-        }
 
         var duration = parseFloat(localStorage.getItem("freecalc.splash"));
         if (!isFinite(duration) || duration <= 0) duration = 3;
@@ -96,6 +95,8 @@
       })();
     </script>
   </div>
+
+  <div class="page-art" aria-hidden="true"></div>
 
   <div class="ambient-orb orb-a" aria-hidden="true"></div>
   <div class="ambient-orb orb-b" aria-hidden="true"></div>

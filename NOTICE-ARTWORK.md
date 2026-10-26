@@ -20,14 +20,9 @@
 
 ## 开屏 v1.2 素材
 
-以下文件取自 [@smalltailqwq/dsh-client-ui-skin-maid-atelier](https://github.com/Small-tailqwq/dsh-deep-whale)（深海女仆工坊）的运行时素材，经等比缩放与 WebP 压缩：
+`assets/img/deepseek_mode.webp` 取自 B 站视频 [《黑色大肥鱼启动。（含开源地址）》](https://www.bilibili.com/video/BV1wspE6EE8b/)（UP：人类与AI的日常）的封面／演示壁纸，对应的开源插件为 [LeeRolling/dsh-chat-wallpaper](https://github.com/LeeRolling/dsh-chat-wallpaper)（MIT）；视频说明中标注开场素材来自 **@NativeDog1**。
 
-- `assets/img/maid_hall.webp`（女仆工坊大厅背景）
-- `assets/img/maid_pose_a.webp`、`assets/img/maid_pose_b.webp`（双女仆立绘）
-
-署名链：角色原案 **上善**（Pixiv 62155430）→ 女仆装再设计 **ZipZipPipe**（Pixiv 18604994）→ 素材 **Small-tailqwq**。
-
-同样采用 **CC BY-NC-SA 4.0**，**禁止商业使用**；不属于本项目 MIT 许可的范围。
+该壁纸仅用于本项目的非商业个人使用，权利归原作者；本项目不对其主张任何权利。
 
 ## 第三方前端资源
 
