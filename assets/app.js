@@ -1,11 +1,19 @@
 (function () {
   "use strict";
 
+  if ("scrollRestoration" in history) {
+    history.scrollRestoration = "manual";
+  }
+  window.scrollTo(0, 0);
+
   var form = document.getElementById("calcForm");
   var input = document.getElementById("expression");
   var centerInput = document.getElementById("centerInput");
   var orderSelect = document.getElementById("orderSelect");
   var directionSelect = document.getElementById("directionSelect");
+  var skinSelect = document.getElementById("skinSelect");
+  var motionSelect = document.getElementById("motionSelect");
+  var replayPlotBtn = document.getElementById("replayPlotBtn");
   var observeBtn = document.getElementById("observeBtn");
   var resultSection = document.getElementById("resultSection");
   var limitFormula = document.getElementById("limitFormula");
@@ -48,6 +56,43 @@
   var lastLatex = "";
   var lastResultText = "";
   var lastPlot = null;
+  var motionMode = localStorage.getItem("freecalc.motion") || "animated";
+  var plotAnimationId = 0;
+  var plotAnimationStart = 0;
+  var splashGone = !splash;
+  var plotVisible = false;
+  var pendingPlotAnimation = false;
+  var plotCard = document.querySelector(".plot-card");
+
+  var SKIN_FILES = {
+    maid: "maid_whale.png",
+    orca: "orca_whale.png",
+    chibi: "chibi_whale.png"
+  };
+
+  function applySkin(name) {
+    var skin = SKIN_FILES[name] ? name : "maid";
+    document.documentElement.dataset.skin = skin;
+    document.documentElement.dataset.mascotFile = SKIN_FILES[skin];
+    document.documentElement.style.setProperty(
+      "--mascot-bg",
+      'url("assets/img/' + SKIN_FILES[skin] + '")'
+    );
+    var splashWhale = document.getElementById("splashWhale");
+    if (splashWhale) {
+      splashWhale.src = "assets/img/" + SKIN_FILES[skin];
+    }
+    var hero = document.getElementById("heroMascot");
+    if (hero) {
+      hero.src = "assets/img/" + SKIN_FILES[skin];
+    }
+    if (skinSelect) {
+      skinSelect.value = skin;
+    }
+    try {
+      localStorage.setItem("freecalc.skin", skin);
+    } catch (error) {}
+  }
 
   var LIMIT_KIND_TEXT = {
     converged: "收敛",
@@ -249,9 +294,108 @@
     return value && value.trim() ? value.trim() : fallback;
   }
 
-  function drawPlot(plot) {
+  function drawBreakEffects(ctx, plot, segments, pad, sx, sy, phase, plotH, progress) {
+    if (!segments || segments.length < 2) {
+      return;
+    }
+    var reveal = typeof progress === "number" ? progress : 1;
+    var yRange = plot.y_max - plot.y_min;
+    var lastGx = -Infinity;
+    for (var i = 1; i < segments.length; i += 1) {
+      var prev = segments[i - 1];
+      var next = segments[i];
+      if (!prev.length || !next.length) {
+        continue;
+      }
+      var a = prev[prev.length - 1];
+      var b = next[0];
+      if (Math.abs(b[1] - a[1]) < yRange * 0.35) {
+        continue;
+      }
+      var x = (a[0] + b[0]) / 2;
+      if (x < plot.x_min || x > plot.x_max) {
+        continue;
+      }
+      var xRatio = (x - plot.x_min) / (plot.x_max - plot.x_min);
+      if (xRatio > reveal) {
+        continue;
+      }
+      var gx = sx(x);
+      if (Math.abs(gx - lastGx) < 28) {
+        continue;
+      }
+      lastGx = gx;
+      ctx.save();
+      ctx.setLineDash([6, 5]);
+      ctx.strokeStyle = cssColor("--gold", "#f3ca7c");
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(gx, pad.top);
+      ctx.lineTo(gx, pad.top + plotH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = cssColor("--gold", "#f3ca7c");
+      [a, b].forEach(function (point) {
+        ctx.beginPath();
+        ctx.arc(sx(point[0]), sy(point[1]), 2.6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.font = '10px "Cascadia Code", Consolas, monospace';
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText("断点", gx + 6, pad.top + 8);
+
+      if (typeof phase === "number") {
+        var pulse = (Math.sin(phase / 150) + 1) / 2;
+        ctx.strokeStyle = cssColor("--gold", "#f3ca7c");
+        ctx.globalAlpha = 0.85 - pulse * 0.5;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(gx, pad.top + 20, 4 + pulse * 11, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+    }
+  }
+
+  function startPlotAnimation(plot) {
+    plotAnimationStart = performance.now();
+    function step(now) {
+      var elapsed = now - plotAnimationStart;
+      if (elapsed >= 2300) {
+        plotAnimationId = 0;
+        drawPlot(plot, null);
+        return;
+      }
+      drawPlot(plot, elapsed);
+      plotAnimationId = requestAnimationFrame(step);
+    }
+    plotAnimationId = requestAnimationFrame(step);
+  }
+
+  function tryStartPlotAnimation() {
+    if (!pendingPlotAnimation || !splashGone || !plotVisible || !lastPlot) {
+      return;
+    }
+    if (motionMode !== "animated") {
+      pendingPlotAnimation = false;
+      return;
+    }
+    pendingPlotAnimation = false;
+    startPlotAnimation(lastPlot);
+  }
+
+  function drawPlot(plot, phase) {
     if (!plotCanvas) {
       return;
+    }
+    if (typeof phase === "undefined") {
+      if (plotAnimationId) {
+        cancelAnimationFrame(plotAnimationId);
+        plotAnimationId = 0;
+      }
     }
     var wrap = plotCanvas.parentElement;
     var width = Math.max(280, Math.round(wrap ? wrap.clientWidth : 640));
@@ -368,6 +512,12 @@
       segments.push(current);
     }
 
+    var progress = 1;
+    if (typeof phase === "number") {
+      var t = Math.min(1, Math.max(0, phase / 1500));
+      progress = t * t * (3 - 2 * t);
+    }
+
     ctx.save();
     ctx.beginPath();
     ctx.rect(pad.left, pad.top, plotW, plotH);
@@ -379,16 +529,21 @@
       if (segment.length < 2) {
         return;
       }
+      var count =
+        progress >= 1
+          ? segment.length
+          : Math.max(2, Math.ceil(segment.length * progress));
       ctx.beginPath();
-      segment.forEach(function (point, index) {
+      for (var i = 0; i < count; i += 1) {
+        var point = segment[i];
         var px = sx(point[0]);
         var py = sy(point[1]);
-        if (index === 0) {
+        if (i === 0) {
           ctx.moveTo(px, py);
         } else {
           ctx.lineTo(px, py);
         }
-      });
+      }
       ctx.stroke();
     });
     ctx.restore();
@@ -403,6 +558,18 @@
       ctx.arc(sx(plot.center_x), pad.top + plotH / 2, 3, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    drawBreakEffects(
+      ctx,
+      plot,
+      segments,
+      pad,
+      sx,
+      sy,
+      typeof phase === "number" ? phase : null,
+      plotH,
+      progress
+    );
   }
 
   function updateCenterLabels(centerText) {
@@ -500,6 +667,8 @@
       replayAnimation(resultSection);
     }
     drawPlot(lastPlot);
+    pendingPlotAnimation = motionMode === "animated";
+    tryStartPlotAnimation();
   }
 
   function copyText(text, label) {
@@ -610,10 +779,16 @@
     clearInterval(pollTimer);
     pollTimer = null;
     setApiStatus("ready", "本地引擎就绪 · 离线计算");
-    autoRunTimer = setTimeout(function () {
-      if (!autoRan && !userInteracted && input.value.trim()) {
-        runObservation();
+    autoRunTimer = setTimeout(function autoObserve() {
+      if (autoRan || userInteracted || !input.value.trim()) {
+        return;
       }
+      // 开屏还在时先别算，免得动画在遮罩后面演完
+      if (!splashGone) {
+        autoRunTimer = setTimeout(autoObserve, 220);
+        return;
+      }
+      runObservation();
     }, 850);
   }
 
@@ -640,6 +815,8 @@
       return;
     }
     splash.dataset.gone = "1";
+    splashGone = true;
+    tryStartPlotAnimation();
     if (splashHideTimer) {
       window.clearTimeout(splashHideTimer);
       splashHideTimer = null;
@@ -734,6 +911,63 @@
       }
     }, 180);
   });
+
+  if (skinSelect) {
+    skinSelect.addEventListener("change", function () {
+      applySkin(skinSelect.value);
+    });
+    applySkin(localStorage.getItem("freecalc.skin") || "maid");
+  }
+
+  if (motionSelect) {
+    motionSelect.value = motionMode === "static" ? "static" : "animated";
+    motionSelect.addEventListener("change", function () {
+      motionMode = motionSelect.value === "static" ? "static" : "animated";
+      try {
+        localStorage.setItem("freecalc.motion", motionMode);
+      } catch (error) {}
+      if (lastPlot) {
+        drawPlot(lastPlot);
+        pendingPlotAnimation = motionMode === "animated";
+        tryStartPlotAnimation();
+      }
+    });
+  }
+
+  if (replayPlotBtn) {
+    replayPlotBtn.addEventListener("click", function () {
+      if (!lastPlot) {
+        return;
+      }
+      pendingPlotAnimation = false;
+      startPlotAnimation(lastPlot);
+    });
+  }
+
+  if (plotCard && "IntersectionObserver" in window) {
+    new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          plotVisible = entry.isIntersecting;
+        });
+        if (plotVisible) {
+          tryStartPlotAnimation();
+        }
+      },
+      { threshold: 0.32 }
+    ).observe(plotCard);
+  } else {
+    plotVisible = true;
+  }
+
+  if (heroMascot) {
+    heroMascot.addEventListener("click", function () {
+      var order = ["maid", "orca", "chibi"];
+      var current = document.documentElement.dataset.skin || "maid";
+      var index = order.indexOf(current);
+      applySkin(order[(index + 1) % order.length]);
+    });
+  }
 
   if (splash) {
     splash.addEventListener("click", hideSplash);

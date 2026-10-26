@@ -28,6 +28,7 @@
   --primary: #38d9f5;
   --primary-hover: #63ecff;
   --primary-focus: rgba(56, 217, 245, 0.25);
+  --btn-gradient: linear-gradient(135deg, #8ef7ff 0%, #55e4fa 46%, #62ffd1 100%);
   --form-element-background-color: transparent;
   --form-element-border-color: transparent;
   --form-element-color: var(--ink);
@@ -437,6 +438,42 @@ body::after {
   box-shadow: 0 0 8px var(--mint);
 }
 
+.hero-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 14px;
+}
+
+.hero-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+
+.hero-controls select {
+  width: auto;
+  min-width: 86px;
+  margin: 0;
+  padding: 5px 28px 5px 10px;
+  border: 1px solid rgba(105, 227, 255, 0.18);
+  border-radius: 999px;
+  color: var(--ink);
+  background-color: rgba(7, 22, 35, 0.72);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+}
+
+.hero-controls select:focus {
+  border-color: var(--line-strong);
+  box-shadow: 0 0 0 3px rgba(92, 233, 255, 0.08);
+  outline: 0;
+}
+
 .hero-art {
   position: relative;
   width: 238px;
@@ -451,9 +488,30 @@ body::after {
   width: calc(100% - 34px);
   height: calc(100% - 34px);
   object-fit: contain;
+  cursor: pointer;
   filter: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.5))
     drop-shadow(0 0 18px rgba(79, 224, 255, 0.2));
   animation: mascot-float 6s ease-in-out infinite;
+  transition: filter 0.25s ease;
+}
+
+.hero-art img:hover {
+  filter: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.5))
+    drop-shadow(0 0 26px rgba(105, 245, 255, 0.42));
+}
+
+.art-hint {
+  position: absolute;
+  z-index: 3;
+  bottom: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #5f8293;
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .mascot-halo {
@@ -755,7 +813,7 @@ body::after {
   border: 1px solid rgba(133, 248, 255, 0.45);
   border-radius: 12px;
   color: #02141b;
-  background: linear-gradient(135deg, #8ef7ff 0%, #55e4fa 46%, #62ffd1 100%);
+  background: var(--btn-gradient);
   box-shadow:
     0 10px 28px rgba(37, 214, 246, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.65);
@@ -1621,4 +1679,59 @@ body::after {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ---- 可切换皮肤：用户手动选择，不做随机/开机自换 ---- */
+html[data-skin="orca"] {
+  --cyan: #a9ecff;
+  --mint: #d7fbff;
+  --gold: #f3c76e;
+  --line: rgba(180, 240, 255, 0.16);
+  --line-strong: rgba(180, 240, 255, 0.36);
+  --primary: #8bdcff;
+  --primary-hover: #c4f3ff;
+  --btn-gradient: linear-gradient(135deg, #f2feff 0%, #a9ecff 46%, #d7fbff 100%);
+}
+
+html[data-skin="orca"] body {
+  background:
+    radial-gradient(980px 680px at 8% -8%, rgba(150, 220, 255, 0.16), transparent 58%),
+    radial-gradient(760px 520px at 95% 8%, rgba(255, 255, 255, 0.07), transparent 60%),
+    linear-gradient(155deg, #02070d 0%, #0a1420 48%, #050b12 100%);
+}
+
+html[data-skin="chibi"] {
+  --cyan: #ffd36e;
+  --mint: #ffeab0;
+  --gold: #ffb86b;
+  --line: rgba(255, 211, 110, 0.16);
+  --line-strong: rgba(255, 211, 110, 0.38);
+  --primary: #ffcf67;
+  --primary-hover: #ffe29a;
+  --btn-gradient: linear-gradient(135deg, #ffe9b8 0%, #ffcf67 46%, #ff9f6b 100%);
+}
+
+html[data-skin="chibi"] body {
+  background:
+    radial-gradient(980px 680px at 8% -8%, rgba(255, 190, 90, 0.14), transparent 58%),
+    radial-gradient(760px 520px at 95% 8%, rgba(255, 120, 170, 0.08), transparent 60%),
+    linear-gradient(155deg, #0a0703 0%, #1a130a 48%, #0b0a07 100%);
+}
+
+html[data-skin="chibi"] body::before {
+  filter: saturate(1.05) contrast(1.02) drop-shadow(0 0 52px rgba(255, 196, 100, 0.25));
+}
+.plot-replay-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: -2px 0 10px;
+}
+
+.plot-replay-row .ghost-btn {
+  width: auto;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  font-size: 0.68rem;
 }

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN" data-theme="dark" data-skin="maid">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -24,16 +24,27 @@
     <span class="splash-skip">点击任意处 / Esc 跳过</span>
     <script>
       (function () {
-        var files = ["maid_whale.png", "chibi_whale.png", "orca_whale.png"];
-        var file = files[Math.floor(Math.random() * files.length)];
-        document.documentElement.dataset.mascotFile = file;
+        // 关掉 WebView2 的滚动位置恢复，避免一打开就停在半截页面
+        if ("scrollRestoration" in history) {
+          history.scrollRestoration = "manual";
+        }
+        window.scrollTo(0, 0);
+        var skins = {
+          maid: "maid_whale.png",
+          orca: "orca_whale.png",
+          chibi: "chibi_whale.png"
+        };
+        var skin = localStorage.getItem("freecalc.skin") || "maid";
+        if (!skins[skin]) skin = "maid";
+        document.documentElement.dataset.skin = skin;
+        document.documentElement.dataset.mascotFile = skins[skin];
         document.documentElement.style.setProperty(
           "--mascot-bg",
-          'url("assets/img/' + file + '")'
+          'url("assets/img/' + skins[skin] + '")'
         );
         var whale = document.getElementById("splashWhale");
         if (whale) {
-          whale.src = "assets/img/" + file;
+          whale.src = "assets/img/" + skins[skin];
         }
       })();
     </script>
@@ -59,14 +70,32 @@
           <span><b></b>任意趋近点</span>
           <span><b></b>KaTeX 离线渲染</span>
         </div>
+        <div class="hero-controls" aria-label="外观与曲线效果">
+          <label for="skinSelect">
+            皮肤
+            <select id="skinSelect">
+              <option value="maid">深海女仆</option>
+              <option value="orca">虎鲸链路</option>
+              <option value="chibi">Q版鲸鱼娘</option>
+            </select>
+          </label>
+          <label for="motionSelect">
+            曲线效果
+            <select id="motionSelect">
+              <option value="animated">动态</option>
+              <option value="static">静态</option>
+            </select>
+          </label>
+        </div>
       </div>
       <div class="hero-art" aria-hidden="true">
         <div class="orbit orbit-outer"></div>
         <div class="orbit orbit-inner"></div>
         <div class="mascot-halo"></div>
-        <img id="heroMascot" src="assets/img/chibi_whale.png" alt="">
+        <img id="heroMascot" src="assets/img/chibi_whale.png" alt="" title="点击切换鲸鱼娘皮肤">
         <span class="art-tag">WHALE // ASSIST</span>
         <span class="art-coord">00.000 / ∞</span>
+        <span class="art-hint">点击头像切换皮肤</span>
       </div>
     </header>
 
@@ -241,13 +270,16 @@
           </div>
           <p>灰色虚线为 <span class="inline-math" id="plotCenterLabel">x = 0</span> · 本地采样</p>
         </div>
+        <div class="plot-replay-row">
+          <button type="button" id="replayPlotBtn" class="ghost-btn">↻ 重播断点动画</button>
+        </div>
         <div class="plot-wrap">
           <canvas id="plotCanvas" aria-label="函数在趋近点附近的曲线"></canvas>
         </div>
         <p class="plot-empty" id="plotEmpty" hidden>当前窗口内没有可用的采样点。</p>
       </article>
 
-      <details class="report-preview">
+      <details class="report-preview" open>
         <summary>预览 Markdown 推导报告</summary>
         <pre id="reportPreview"></pre>
       </details>

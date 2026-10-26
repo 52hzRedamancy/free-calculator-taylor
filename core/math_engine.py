@@ -25,6 +25,7 @@ import tempfile
 import threading
 import time
 import traceback
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import datetime
@@ -77,6 +78,27 @@ class MathEngine:
     _IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
     _CHAR_WHITELIST_RE = re.compile(r"^[0-9A-Za-z+\-*/().,\s]+$")
     _CENTER_CHAR_RE = re.compile(r"^[0-9A-Za-z+\-*/().]+$")
+    _NORMALIZE_MAP = str.maketrans(
+        {
+            "（": "(",
+            "）": ")",
+            "＋": "+",
+            "－": "-",
+            "＊": "*",
+            "／": "/",
+            "，": ",",
+            "。": ".",
+            "−": "-",
+            "×": "*",
+            "÷": "/",
+            "π": "pi",
+            "∞": "oo",
+            "\u200b": "",
+            "\u200c": "",
+            "\u200d": "",
+            "\ufeff": "",
+        }
+    )
     _NUMBER_RE = re.compile(r"\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\.\d+")
     _TOKEN_RE = re.compile(
         r"\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\.\d+|[A-Za-z_][A-Za-z0-9_]*|[()+\-*/,]"
@@ -164,7 +186,9 @@ class MathEngine:
         if not isinstance(expression, str):
             return {"error": "输入必须是字符串表达式。"}
 
-        clean = re.sub(r"\s+", " ", expression).strip()
+        clean = re.sub(
+            r"\s+", " ", unicodedata.normalize("NFKC", expression).translate(self._NORMALIZE_MAP)
+        ).strip()
         if not clean:
             return {"error": "请输入一个关于 x 的表达式。"}
         if len(clean) > self.MAX_INPUT_LENGTH:
@@ -173,9 +197,12 @@ class MathEngine:
             bad = sorted(
                 {ch for ch in clean if not re.fullmatch(r"[0-9A-Za-z+\-*/()., ]", ch)}
             )
-            shown = " ".join(repr(ch) for ch in bad)
+            shown = "、".join(f"{repr(ch)} (U+{ord(ch):04X})" for ch in bad)
             return {
-                "error": f"包含不允许的字符：{shown}。仅支持 x、数字、+-*/() 与函数调用。"
+                "error": (
+                    f"包含不允许的字符：{shown}。仅支持 x、数字、"
+                    "+-*/() 与函数调用；中文括号/全角符号会自动转换。"
+                )
             }
         if "//" in clean:
             return {"error": "不支持整除运算符 //，请改用 /。"}
@@ -273,7 +300,9 @@ class MathEngine:
 
     def _parse_center(self, raw: Any) -> dict[str, Any]:
         text = "0" if raw is None else str(raw)
-        clean = re.sub(r"\s+", "", text)
+        clean = re.sub(
+            r"\s+", "", unicodedata.normalize("NFKC", text).translate(self._NORMALIZE_MAP)
+        )
         if not clean:
             clean = "0"
         if len(clean) > self.MAX_CENTER_LENGTH:
