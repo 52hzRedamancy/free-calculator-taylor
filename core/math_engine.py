@@ -1,4 +1,4 @@
-"""泰勒极限观测引擎 v1.2.0。
+"""泰勒极限观测引擎 v1.3.0。
 
 安全边界：
 * 只接受 x、数字、四则运算/幂运算、括号、逗号（仅 log 底数）和固定的初等函数白名单；
@@ -52,8 +52,9 @@ class MathEngine:
     MIN_ORDER = 1
     MAX_ORDER = 10
     DEFAULT_ORDER = 6
-    PLOT_SAMPLES = 401
+    PLOT_SAMPLES = 1201
     PLOT_HALF_SPAN = 2.0
+    PLOT_MAX_SPAN = 40.0
 
     _FUNCTION_NAMES = frozenset(
         {
@@ -182,6 +183,139 @@ class MathEngine:
 
     # ------------------------------------------------------------- validate
 
+    def plot_range(
+        self,
+        expression: Any,
+        center: Any = None,
+        x_min: Any = None,
+        x_max: Any = None,
+    ) -> dict[str, Any]:
+        """按区间重采样，套用与极限计算相同的超时/熔断保护。"""
+        try:
+            cooldown = self._cooldown_remaining()
+            if cooldown > 0:
+                return {
+                    "success": False,
+                    "busy": True,
+                    "error": (
+                        "上一次计算超时后，引擎仍在收尾。"
+                        f"请等待约 {cooldown:.1f} 秒再试。"
+                    ),
+                }
+            executor = self._get_executor()
+            future = executor.submit(
+                self._plot_range_job, expression, center, x_min, x_max
+            )
+            try:
+                return future.result(timeout=self.TIMEOUT_SECONDS)
+            except ValueError as exc:
+                return {"success": False, "error": str(exc)}
+            except FutureTimeoutError:
+                future.cancel()
+                self._mark_timeout()
+                return {
+                    "success": False,
+                    "timeout": True,
+                    "error": (
+                        f"区间采样超时：超过 {self.TIMEOUT_SECONDS} 秒仍未完成，"
+                        "请缩小范围或简化表达式。"
+                    ),
+                }
+        except Exception as exc:  # noqa: BLE001 - API 边界必须兜底
+            crash_path = self._write_crash_log(exc)
+            return {
+                "success": False,
+                "error": f"区间采样发生异常：{exc}",
+                "crash_log": str(crash_path),
+            }
+
+    def _plot_range_job(
+        self,
+        expression: Any,
+        center: Any = None,
+        x_min: Any = None,
+        x_max: Any = None,
+    ) -> dict[str, Any]:
+        """按用户键盘指定的 x 区间重新加密采样，供曲线按区间重播动画。"""
+        try:
+            checked = self._validate(expression)
+            if "error" in checked:
+                return {"success": False, "error": checked["error"]}
+            center_check = self._parse_center(center)
+            if "error" in center_check:
+                return {"success": False, "error": center_check["error"]}
+
+            symbol = sp.Symbol("x", real=True)
+            local_dict = {
+                "x": symbol,
+                "sin": sp.sin,
+                "cos": sp.cos,
+                "tan": sp.tan,
+                "asin": sp.asin,
+                "acos": sp.acos,
+                "atan": sp.atan,
+                "sinh": sp.sinh,
+                "cosh": sp.cosh,
+                "tanh": sp.tanh,
+                "exp": sp.exp,
+                "ln": sp.log,
+                "log": _log,
+                "sqrt": sp.sqrt,
+                "abs": sp.Abs,
+                "pi": sp.pi,
+                "e": sp.E,
+            }
+            global_dict = {
+                "__builtins__": {},
+                "Symbol": sp.Symbol,
+                "Integer": sp.Integer,
+                "Float": sp.Float,
+                "Rational": sp.Rational,
+            }
+            parsed = sp.parse_expr(
+                checked["expression"],
+                local_dict=local_dict,
+                global_dict=global_dict,
+                evaluate=True,
+            )
+            if parsed.free_symbols - {symbol}:
+                return {"success": False, "error": "区间观察只支持关于 x 的表达式。"}
+
+            if len(str(x_min)) > 32 or len(str(x_max)) > 32:
+                return {"success": False, "error": "区间端点过长。"}
+            lo = self._parse_range_value(x_min, "左端点")
+            hi = self._parse_range_value(x_max, "右端点")
+            if lo is None or hi is None:
+                return {
+                    "success": False,
+                    "error": "区间端点需要是数字，例如 -0.5 与 0.5。",
+                }
+            if hi <= lo:
+                return {"success": False, "error": "右端点必须大于左端点。"}
+            if hi - lo > self.PLOT_MAX_SPAN:
+                return {
+                    "success": False,
+                    "error": f"区间过宽（上限 {self.PLOT_MAX_SPAN:g}），请缩小观察范围。",
+                }
+
+            plot = self._sample_plot(
+                parsed, symbol, center_check["center"], x_min=lo, x_max=hi
+            )
+            if not plot.get("valid"):
+                return {"success": True, "plot": plot, "points": 0}
+            return {"success": True, "plot": plot, "points": len(plot.get("points", []))}
+        except Exception as exc:  # noqa: BLE001 - 区间重采样失败要给出可读提示
+            return {"success": False, "error": f"区间采样失败：{exc}"}
+
+    @staticmethod
+    def _parse_range_value(value: Any, label: str) -> float | None:
+        try:
+            raw = str(value).strip().replace("，", ",").replace(" ", "")
+            number = float(sp.N(sp.sympify(raw, locals={"pi": sp.pi, "e": sp.E}), 12))
+        except Exception:  # noqa: BLE001 - 非法端点由调用方统一提示
+            return None
+        return number if math.isfinite(number) else None
+
     def _validate(self, expression: Any) -> dict[str, Any]:
         if not isinstance(expression, str):
             return {"error": "输入必须是字符串表达式。"}
@@ -189,6 +323,8 @@ class MathEngine:
         clean = re.sub(
             r"\s+", " ", unicodedata.normalize("NFKC", expression).translate(self._NORMALIZE_MAP)
         ).strip()
+        # 大写标识符统一按小写处理：X → x、SIN(x) → sin(x)
+        clean = clean.translate({code: code + 32 for code in range(ord("A"), ord("Z") + 1)})
         if not clean:
             return {"error": "请输入一个关于 x 的表达式。"}
         if len(clean) > self.MAX_INPUT_LENGTH:
@@ -551,6 +687,7 @@ class MathEngine:
             None,
         )
         plot = self._sample_plot(parsed, symbol, center)
+        break_summary, break_list = self._detect_breaks(parsed, symbol, center, plot)
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         center_text = str(center)
         center_latex = sp.latex(center)
@@ -597,6 +734,8 @@ class MathEngine:
             "first_nonzero_order": first_nonzero,
             "steps": steps,
             "plot": plot,
+            "break_summary": break_summary,
+            "break_list": break_list,
             "elapsed_ms": elapsed_ms,
             "raw_report": raw_report,
             "report_filename": filename,
@@ -640,11 +779,20 @@ class MathEngine:
         parsed: sp.Basic,
         symbol: sp.Symbol,
         center: sp.Basic,
+        x_min: float | None = None,
+        x_max: float | None = None,
     ) -> dict[str, Any]:
-        """在趋近点附近采样，供前端 canvas 绘制曲线。"""
+        """在趋近点附近采样，供前端 canvas 绘制曲线。可指定观察区间。"""
         center_x: float | None = None
         try:
-            if center is sp.oo:
+            if x_min is not None and x_max is not None:
+                if center is not sp.oo and center is not -sp.oo:
+                    center_x = float(sp.N(center, 12))
+                x_min = float(x_min)
+                x_max = float(x_max)
+                if not (math.isfinite(x_min) and math.isfinite(x_max) and x_max > x_min):
+                    return {"valid": False}
+            elif center is sp.oo:
                 x_min, x_max = 0.5, 12.0
             elif center is -sp.oo:
                 x_min, x_max = -12.0, -0.5
@@ -701,6 +849,173 @@ class MathEngine:
             "points": points,
         }
 
+    # -------------------------------------------------- discontinuity types
+
+    def _numeric_sides(self, func: Any, x0: float) -> dict[str, list[float]] | None:
+        """在 x0 两侧各取几档极小步长，收集两侧样本值。"""
+        eps = (1e-3, 1e-5, 1e-7)
+        sides: dict[str, list[float]] = {"left": [], "right": []}
+        for step in eps:
+            for key, sign in (("left", -1.0), ("right", 1.0)):
+                try:
+                    value = func(x0 + sign * step)
+                except Exception:  # noqa: BLE001 - 取不到值即视为实数域外
+                    return None
+                if isinstance(value, complex):
+                    return None
+                try:
+                    number = float(value)
+                except (TypeError, ValueError):
+                    return None
+                if math.isnan(number):
+                    return None
+                sides[key].append(number)
+        return sides
+
+    def _classify_discontinuity(self, func: Any, x0: float) -> str | None:
+        """按两侧数值走势判断断点类型；该点连续时返回 None。"""
+        sides = self._numeric_sides(func, x0)
+        if sides is None:
+            return "复数域断点（实数域外）"
+        left, right = sides["left"], sides["right"]
+
+        try:
+            center_value = float(func(x0))
+            defined_center = math.isfinite(center_value)
+        except Exception:  # noqa: BLE001 - 中心点无定义
+            center_value = 0.0
+            defined_center = False
+        if defined_center:
+            scale_center = max(1.0, abs(center_value))
+            if (
+                abs(left[-1] - center_value) < 1e-3 * scale_center
+                and abs(right[-1] - center_value) < 1e-3 * scale_center
+            ):
+                return None
+
+        def grows(seq: list[float]) -> bool:
+            finite = [abs(value) for value in seq if math.isfinite(value)]
+            if len(finite) < len(seq):
+                return True
+            if not finite:
+                return True
+            return finite[-1] > 100 * max(1.0, finite[0]) or finite[-1] > 1e6
+
+        if grows(left) or grows(right):
+            return "无穷间断点"
+
+        def unstable(seq: list[float]) -> bool:
+            high, low = max(seq), min(seq)
+            return (high - low) > 0.25 * max(1.0, abs(high), abs(low))
+
+        if unstable(left) or unstable(right):
+            return "振荡间断点"
+
+        scale = max(1.0, abs(left[-1]), abs(right[-1]))
+        if abs(left[-1] - right[-1]) > 1e-2 * scale:
+            return "跳跃间断点"
+        return "可去间断点"
+
+    def _refine_break(self, func: Any, xa: float, xb: float) -> float:
+        """在 [xa, xb] 内二分逼近幅度最大的位置（用于定位极点）。"""
+        lo, hi = min(xa, xb), max(xa, xb)
+
+        def mag(value: float) -> float:
+            try:
+                number = float(func(value))
+            except Exception:  # noqa: BLE001 - 无定义视为无限大
+                return float("inf")
+            if math.isnan(number):
+                return float("inf")
+            return abs(number)
+
+        for _ in range(60):
+            mid = (lo + hi) / 2.0
+            if mid in (lo, hi):
+                break
+            if mag((lo + mid) / 2.0) > mag((mid + hi) / 2.0):
+                hi = mid
+            else:
+                lo = mid
+        return (lo + hi) / 2.0
+
+    @staticmethod
+    def _format_x(value: float) -> str:
+        text = f"{value:.6g}"
+        return "0" if text in {"-0", "-0.0"} else text
+
+    def _detect_breaks(
+        self,
+        parsed: sp.Basic,
+        symbol: sp.Symbol,
+        center: sp.Basic,
+        plot: dict[str, Any],
+    ) -> tuple[str, list[dict[str, str]]]:
+        """找出采样中疑似断开的位置并判定类型。"""
+        try:
+            func = sp.lambdify(symbol, parsed, modules=[{"Abs": abs}, "math"])
+        except Exception:  # noqa: BLE001 - 无法数值化时不做断点分析
+            return "无法分析", []
+
+        candidates: list[float] = []
+        points = plot.get("points") if isinstance(plot, dict) else None
+        if points:
+            values = [point[1] for point in points]
+            span = max(values) - min(values) if values else 0.0
+            if span <= 0:
+                span = 1.0
+            previous = None
+            for point in points:
+                if previous is not None and abs(point[1] - previous[1]) > span * 0.55:
+                    candidates.append(
+                        self._refine_break(func, previous[0], point[0])
+                    )
+                previous = point
+
+        center_x: float | None = None
+        try:
+            center_number = complex(sp.N(center, 12))
+            if abs(center_number.imag) < 1e-12 and math.isfinite(center_number.real):
+                center_x = float(center_number.real)
+        except Exception:  # noqa: BLE001 - 无穷趋近点不做中心断点分析
+            center_x = None
+
+        if center_x is not None:
+            try:
+                center_value = func(center_x)
+                bad_center = not isinstance(center_value, (int, float, complex)) or (
+                    isinstance(center_value, complex)
+                    or not math.isfinite(float(center_value))
+                )
+            except Exception:  # noqa: BLE001 - 中心点无定义也算断点候选
+                bad_center = True
+            if bad_center:
+                candidates.insert(0, center_x)
+
+        picked: list[float] = []
+        for value in candidates:
+            if not math.isfinite(value):
+                continue
+            if any(
+                abs(value - other) < 1e-3 * max(1.0, abs(value), abs(other))
+                for other in picked
+            ):
+                continue
+            picked.append(value)
+            if len(picked) >= 4:
+                break
+
+        breaks: list[dict[str, str]] = []
+        for value in picked:
+            kind = self._classify_discontinuity(func, value)
+            if not kind:
+                continue
+            breaks.append({"x": self._format_x(value), "type": kind})
+        if not breaks:
+            return "未检测到断点", []
+        summary = "；".join(f"x = {item['x']} · {item['type']}" for item in breaks)
+        return summary, breaks
+
     def _report_filename(self, clean: str, center_text: str) -> str:
         slug = re.sub(r"[^0-9A-Za-z]+", "_", clean).strip("_")[:36]
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -737,10 +1052,17 @@ class MathEngine:
             "one_sided": "左右极限不一致（双侧极限不存在）",
             "undefined": "未定/无法求值",
         }.get(limit_kind, "未知")
+        verdict_text = {
+            "converged": "结论：极限存在（收敛）",
+            "divergent": "结论：极限发散（不存在有限极限）",
+            "oscillating": "结论：极限不存在（振荡）",
+            "one_sided": "结论：双侧极限不存在（左右极限不一致）",
+            "undefined": "结论：极限未定 / 无法求值",
+        }.get(limit_kind, "结论：未知")
         lines = [
             "# 自由计算器 · 泰勒极限推导报告",
             "",
-            "> 由 **自由计算器 v1.2.0 / 泰勒极限观测引擎** 在本机离线生成。",
+            "> 由 **自由计算器 v1.3.0 / 泰勒极限观测引擎** 在本机离线生成。",
             f"> 计算时间：{now} · 耗时：{elapsed_ms} ms · 引擎：SymPy {sp.__version__}",
             f"> 趋近点：$x \\to {center_latex}$ · {direction_label} · 展开阶数：1–{max_order}",
             "",
@@ -752,9 +1074,13 @@ class MathEngine:
             "",
             "## 极限结论",
             "",
-            f"$$\\lim_{{x \\to {center_latex}}} {parsed_latex} = {limit_latex}$$",
+            f"> **{verdict_text}**",
+            ">",
+            f"> $\\lim_{{x \\to {center_latex}}} {parsed_latex} = {limit_latex}$",
+            ">",
+            f"> 原始输入：`{clean}` · 精确结果：`{limit_text}`",
+            f"> 引擎：SymPy {sp.__version__} · 生成时间：{now}",
             "",
-            f"- 精确结果：`{limit_text}`",
             f"- 状态：{kind_text}",
         ]
         if limit_note:

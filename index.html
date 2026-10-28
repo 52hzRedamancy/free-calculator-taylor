@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>自由计算器 v1.2.0 · 泰勒极限观测引擎</title>
+  <title>自由计算器 v1.3.0 · 泰勒极限观测引擎</title>
   <link rel="stylesheet" href="assets/pico.min.css">
   <link rel="stylesheet" href="assets/katex.min.css">
   <link rel="stylesheet" href="assets/style.css">
@@ -101,12 +101,29 @@
   <div class="ambient-orb orb-a" aria-hidden="true"></div>
   <div class="ambient-orb orb-b" aria-hidden="true"></div>
 
+  <button type="button" id="helpBtn" class="help-fab" title="函数手册（点击插入函数）" aria-haspopup="dialog" aria-controls="helpModal">?</button>
+
+  <div class="help-modal" id="helpModal" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
+    <div class="help-dialog">
+      <div class="help-head">
+        <div>
+          <span class="section-kicker">FUNCTION MANUAL</span>
+          <h3 id="helpTitle">函数手册</h3>
+        </div>
+        <button type="button" class="help-close" id="helpClose" aria-label="关闭函数手册">×</button>
+      </div>
+      <p class="help-tip">点击胶囊把函数插入到输入框光标处；函数必须带括号，例如 <code>sin(x)</code>。</p>
+      <div class="help-grid" id="helpGrid"></div>
+      <p class="help-foot">大写 <code>X</code> 会按 <code>x</code> 处理，中文全角括号与运算符会自动转半角。</p>
+    </div>
+  </div>
+
   <main class="container app-shell">
     <header class="hero">
       <div class="hero-copy">
         <div class="eyebrow">
           <span class="eyebrow-mark"></span>
-          FREE CALCULATOR <i>/</i> v1.2.0
+          FREE CALCULATOR <i>/</i> v1.3.0
         </div>
         <h1>自由计算器<span>泰勒极限观测引擎</span></h1>
         <p class="hero-lede">
@@ -228,6 +245,7 @@
             趋近点可填常数或 <code>oo</code>；输入 <code>log(</code> 会自动补出底数位 <code>log(x, ▮)</code>；<code>2x</code> 会自动补乘号。
           </p>
         </div>
+        <p class="func-hint" id="funcHint" hidden></p>
       </form>
 
       <div class="example-row" aria-label="示例表达式">
@@ -293,6 +311,10 @@
           <span>计算引擎</span>
           <code id="resultEngine">—</code>
         </article>
+        <article class="mini-card">
+          <span>断点类型</span>
+          <code id="resultBreak">—</code>
+        </article>
       </div>
 
       <article class="steps-card">
@@ -327,12 +349,27 @@
           <p>灰色虚线为 <span class="inline-math" id="plotCenterLabel">x = 0</span> · 本地采样</p>
         </div>
         <div class="plot-replay-row">
+          <label class="range-toggle" title="开启后可用键盘输入观察区间，曲线按该区间重新采样重播">
+            <input type="checkbox" id="rangeToggle">
+            <span>键盘指定区间</span>
+          </label>
+          <span class="range-fields" id="rangeFields" hidden>
+            <span class="range-label">x ∈</span>
+            <input id="rangeMin" class="range-input" type="text" inputmode="text" placeholder="-0.5" aria-label="区间左端点" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <span class="range-dash">→</span>
+            <input id="rangeMax" class="range-input" type="text" inputmode="text" placeholder="0.5" aria-label="区间右端点" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <button type="button" id="applyRangeBtn" class="ghost-btn">应用</button>
+            <button type="button" id="fullRangeBtn" class="ghost-btn" hidden>全范围</button>
+          </span>
+          <span id="rangeError" class="range-error" hidden></span>
           <button type="button" id="replayPlotBtn" class="ghost-btn">↻ 重播断点动画</button>
+          <button type="button" id="resetZoomBtn" class="ghost-btn" hidden>⤢ 复位缩放</button>
+          <span class="plot-zoom-tip">拖拽框选放大局部 · 双击复位</span>
         </div>
         <div class="plot-wrap">
           <canvas id="plotCanvas" aria-label="函数在趋近点附近的曲线"></canvas>
+          <p class="plot-empty" id="plotEmpty" hidden>⚠️ 在实数域内无有效采样点（函数可能包含复数或无定义）</p>
         </div>
-        <p class="plot-empty" id="plotEmpty" hidden>当前窗口内没有可用的采样点。</p>
       </article>
 
       <details class="report-preview" open>

@@ -1,4 +1,4 @@
-"""自由计算器 v1.2.0 - pywebview 桌面入口。"""
+"""自由计算器 v1.3.0 - pywebview 桌面入口。"""
 
 from __future__ import annotations
 
@@ -39,10 +39,35 @@ def fit_window_size(
     except Exception:
         return preferred[0], preferred[1], None, None
 
-    width = max(minimum[0], min(preferred[0], work_w - 40))
-    height = max(minimum[1], min(preferred[1], work_h - 40))
-    x = left + max(0, (work_w - width) // 2)
-    y = top + max(0, (work_h - height) // 2)
+    # pywebview 的宽高按逻辑像素换算成物理像素（125% 缩放 → ×1.25），
+    # 而 SPI_GETWORKAREA 给的是物理像素，这里先折回逻辑像素再居中。
+    scale = 1.0
+    try:
+        import ctypes
+
+        # GetDpiForSystem 在未声明 DPI 的进程里恒为 96，优先问 shcore 拿真实缩放比
+        percent = 0
+        try:
+            percent = int(ctypes.windll.shcore.GetScaleFactorForDevice(0))
+        except Exception:
+            percent = 0
+        if percent >= 100:
+            scale = percent / 100.0
+        else:
+            dpi = int(ctypes.windll.user32.GetDpiForSystem())
+            if dpi > 0:
+                scale = dpi / 96.0
+    except Exception:
+        scale = 1.0
+    if not (0.9 <= scale <= 4.0):
+        scale = 1.0
+
+    logical_w = int(work_w / scale)
+    logical_h = int(work_h / scale)
+    width = max(minimum[0], min(preferred[0], logical_w - 40))
+    height = max(minimum[1], min(preferred[1], logical_h - 40))
+    x = int(left / scale) + max(0, (logical_w - width) // 2)
+    y = int(top / scale) + max(0, (logical_h - height) // 2)
     return width, height, x, y
 
 
@@ -56,7 +81,7 @@ def main() -> None:
 
     width, height, x, y = fit_window_size()
     window_args = dict(
-        title="自由计算器 v1.2.0",
+        title="自由计算器 v1.3.0",
         url=index_file,
         js_api=MathEngine(),
         width=width,
@@ -69,7 +94,9 @@ def main() -> None:
         window_args["x"] = x
         window_args["y"] = y
     webview.create_window(**window_args)
-    webview.start()
+    # private_mode 默认开启会让 WebView2 每次启动清空 localStorage，
+    # 皮肤/开屏时长等偏好无法跨启动保存，这里显式关掉。
+    webview.start(private_mode=False)
 
 
 if __name__ == "__main__":
