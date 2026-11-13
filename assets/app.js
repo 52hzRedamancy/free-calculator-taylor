@@ -59,6 +59,28 @@
   var rangeFields = document.getElementById("rangeFields");
   var funcHint = document.getElementById("funcHint");
   var resultBreak = document.getElementById("resultBreak");
+  var modeLimitTab = document.getElementById("modeLimitTab");
+  var modeDerivTab = document.getElementById("modeDerivTab");
+  var limitParams = document.getElementById("limitParams");
+  var derivativeParams = document.getElementById("derivativeParams");
+  var derivativeOrderSelect = document.getElementById("derivativeOrderSelect");
+  var exprLabel = document.getElementById("exprLabel");
+  var resultTitle = document.getElementById("resultTitle");
+  var resultKicker = document.getElementById("resultKicker");
+  var limitCardEl = document.getElementById("limitCard");
+  var stepsCardEl = document.getElementById("stepsCard");
+  var derivativeCard = document.getElementById("derivativeCard");
+  var derivLabel = document.getElementById("derivLabel");
+  var derivStatus = document.getElementById("derivStatus");
+  var derivFormula = document.getElementById("derivFormula");
+  var derivSlope = document.getElementById("derivSlope");
+  var derivY0 = document.getElementById("derivY0");
+  var derivOrder = document.getElementById("derivOrder");
+  var derivTangent = document.getElementById("derivTangent");
+  var derivPointSlope = document.getElementById("derivPointSlope");
+  var derivNote = document.getElementById("derivNote");
+  var plotTip = document.getElementById("plotTip");
+  var plotCaption = document.getElementById("plotCaption");
   var plotZoom = null;
   var fullPlot = null;
   var zoomDrag = null;
@@ -84,6 +106,11 @@
   var plotVisible = false;
   var pendingPlotAnimation = false;
   var plotCard = document.querySelector(".plot-card");
+  var mode = "limit"; // limit | derivative
+  var derivativeLocked = false;
+  var lastDerivative = null;
+  var plotOverlay = null;
+  var precheckTimer = null;
 
   var SKIN_FILES = {
     maid: "maid_whale.png",
@@ -163,13 +190,13 @@
 
   function setLoading(loading) {
     busy = loading;
-    observeBtn.disabled = loading;
+    observeBtn.disabled = loading || (mode === "derivative" && derivativeLocked);
     if (loading) {
       observeBtn.setAttribute("aria-busy", "true");
-      observeBtn.textContent = "展开观测中…";
+      observeBtn.textContent = mode === "derivative" ? "求导中…" : "展开观测中…";
     } else {
       observeBtn.removeAttribute("aria-busy");
-      observeBtn.textContent = "观测极限";
+      observeBtn.textContent = mode === "derivative" ? "计算求导" : "观测极限";
     }
   }
 
@@ -554,6 +581,17 @@
       win.max = hi;
     }
     return win;
+  }
+
+  function plotYWindow(plot, win) {
+    var zoomedY = plotZoom ? visibleYBounds(plot.points, win) : null;
+    var min = zoomedY ? zoomedY.min : plot.y_min;
+    var max = zoomedY ? zoomedY.max : plot.y_max;
+    if (!(max > min)) {
+      min = plot.y_min;
+      max = plot.y_max;
+    }
+    return { min: min, max: max };
   }
 
   function visibleYBounds(points, win) {
@@ -947,13 +985,9 @@
 
     // 缩放窗口：plotZoom 为空时用后端给的完整采样范围
     var win = plotWindow(plot);
-    var zoomedY = plotZoom ? visibleYBounds(plot.points, win) : null;
-    var vyMin = zoomedY ? zoomedY.min : plot.y_min;
-    var vyMax = zoomedY ? zoomedY.max : plot.y_max;
-    if (!(vyMax > vyMin)) {
-      vyMin = plot.y_min;
-      vyMax = plot.y_max;
-    }
+    var yWindow = plotYWindow(plot, win);
+    var vyMin = yWindow.min;
+    var vyMax = yWindow.max;
     var visible = plot.points.filter(function (point) {
       return point[0] >= win.min && point[0] <= win.max;
     });
@@ -1160,6 +1194,131 @@
       progress,
       yRange
     );
+
+    drawDerivativeOverlay(ctx, plotOverlay, win, pad, sx, sy, plotW, plotH);
+  }
+
+  function drawDerivativeOverlay(ctx, overlay, win, pad, sx, sy, plotW, plotH) {
+    if (!overlay || typeof overlay.x0 !== "number") {
+      return;
+    }
+    var x0 = overlay.x0;
+    if (x0 < win.min || x0 > win.max) {
+      return;
+    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(pad.left, pad.top, plotW, plotH);
+    ctx.clip();
+    if (
+      overlay.kind === "tangent" &&
+      typeof overlay.k === "number" &&
+      typeof overlay.y0 === "number" &&
+      isFinite(overlay.k) &&
+      isFinite(overlay.y0)
+    ) {
+      var span = 2;
+      var xa = Math.max(win.min, x0 - span);
+      var xb = Math.min(win.max, x0 + span);
+      ctx.strokeStyle = cssColor("--rose", "#ff6f9c");
+      ctx.lineWidth = 1.8;
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(sx(xa), sy(overlay.y0 + overlay.k * (xa - x0)));
+      ctx.lineTo(sx(xb), sy(overlay.y0 + overlay.k * (xb - x0)));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+
+      var px = sx(x0);
+      var py = sy(overlay.y0);
+      var glow = ctx.createRadialGradient(px, py, 0, px, py, 17);
+      glow.addColorStop(0, "rgba(255, 77, 109, 0.55)");
+      glow.addColorStop(1, "rgba(255, 77, 109, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(px, py, 17, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ff4d6d";
+      ctx.beginPath();
+      ctx.arc(px, py, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255, 199, 216, 0.95)";
+      ctx.font = '11px "Cascadia Code", Consolas, monospace';
+      ctx.textAlign = "left";
+      ctx.textBaseline = "bottom";
+      ctx.fillText("k = " + formatTick(overlay.k), px + 10, py - 8);
+      return;
+    }
+
+    // 不可导 / 无定义：黄色高亮散点 + 竖虚线
+    ctx.strokeStyle = "rgba(255, 210, 77, 0.5)";
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([4, 5]);
+    ctx.beginPath();
+    ctx.moveTo(sx(x0), pad.top);
+    ctx.lineTo(sx(x0), pad.top + plotH);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    var mx = sx(x0);
+    var my =
+      typeof overlay.y0 === "number" ? sy(overlay.y0) : pad.top + plotH / 2;
+    var halo = ctx.createRadialGradient(mx, my, 0, mx, my, 19);
+    halo.addColorStop(0, "rgba(255, 210, 77, 0.5)");
+    halo.addColorStop(1, "rgba(255, 210, 77, 0)");
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(mx, my, 19, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 179, 0, 0.9)";
+    ctx.lineWidth = 1.4;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.arc(mx, my, 11, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#ffd24d";
+    ctx.beginPath();
+    ctx.arc(mx, my, 5.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#ffb300";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(mx - 4, my - 4);
+    ctx.lineTo(mx + 4, my + 4);
+    ctx.moveTo(mx + 4, my - 4);
+    ctx.lineTo(mx - 4, my + 4);
+    ctx.stroke();
+  }
+
+  function overlayMarkerPixel() {
+    if (!plotOverlay || !lastPlot || !lastPlot.valid) {
+      return null;
+    }
+    var geo = plotGeometry();
+    if (!geo) {
+      return null;
+    }
+    var win = plotWindow(lastPlot);
+    var x0 = plotOverlay.x0;
+    if (typeof x0 !== "number" || x0 < win.min || x0 > win.max) {
+      return null;
+    }
+    var px = geo.pad.left + ((x0 - win.min) / (win.max - win.min)) * geo.plotW;
+    var py;
+    if (typeof plotOverlay.y0 === "number") {
+      var yWindow = plotYWindow(lastPlot, win);
+      var ratio = (plotOverlay.y0 - yWindow.min) / (yWindow.max - yWindow.min);
+      py = geo.pad.top + geo.plotH - ratio * geo.plotH;
+    } else {
+      py = geo.pad.top + geo.plotH / 2;
+    }
+    return { x: px, y: py };
   }
 
   function updateCenterLabels(centerText) {
@@ -1267,6 +1426,21 @@
     copyResultBtn.style.display = lastResultText ? "inline-flex" : "none";
     copyReportBtn.style.display = lastReport ? "inline-flex" : "none";
     downloadHint.textContent = "报告包含输入、极限结论与完整逐阶推导。";
+    plotOverlay = null;
+    lastDerivative = null;
+    derivativeLocked = false;
+    if (plotTip) {
+      plotTip.hidden = true;
+    }
+    if (limitCardEl) {
+      limitCardEl.hidden = false;
+    }
+    if (stepsCardEl) {
+      stepsCardEl.hidden = false;
+    }
+    if (derivativeCard) {
+      derivativeCard.hidden = true;
+    }
     resultSection.hidden = false;
     errorBox.hidden = true;
     replayAnimation(limitCard);
@@ -1276,6 +1450,440 @@
     drawPlot(lastPlot);
     pendingPlotAnimation = motionMode === "animated";
     tryStartPlotAnimation();
+  }
+
+  // ------------------------------------------------- v1.4.0 求导模式
+
+  function showResultCardsForMode(target) {
+    var isDeriv = target === "derivative";
+    if (limitCardEl) {
+      limitCardEl.hidden = isDeriv;
+    }
+    if (stepsCardEl) {
+      stepsCardEl.hidden = isDeriv;
+    }
+    if (derivativeCard) {
+      derivativeCard.hidden = !(isDeriv && lastDerivative);
+    }
+  }
+
+  function lockDerivative() {
+    derivativeLocked = true;
+    if (observeBtn) {
+      observeBtn.disabled = true;
+    }
+  }
+
+  function unlockDerivative() {
+    derivativeLocked = false;
+    if (observeBtn && !busy) {
+      observeBtn.disabled = false;
+    }
+    if (apiStatus && apiStatus.dataset.state === "warn") {
+      setApiStatus("ready", "本地引擎就绪 · 可继续求导");
+    }
+  }
+
+  function showBanner(message) {
+    if (!errorBox || !errorText) {
+      return;
+    }
+    errorText.textContent = message || "";
+    errorBox.hidden = false;
+  }
+
+  function setPlotCaption(target) {
+    if (!plotCaption) {
+      return;
+    }
+    if (target === "derivative") {
+      plotCaption.textContent =
+        "红色虚线为切线 · 红点为切点 · 黄点为不可导点";
+      plotCaption.dataset.mode = "derivative";
+      plotCenterLabel = null;
+    } else if (plotCaption.dataset.mode === "derivative") {
+      plotCaption.innerHTML =
+        '灰色虚线为 <span class="inline-math" id="plotCenterLabel">x = 0</span> · 本地采样';
+      plotCaption.dataset.mode = "limit";
+      plotCenterLabel = document.getElementById("plotCenterLabel");
+    }
+  }
+
+  function setMode(next) {
+    var target = next === "derivative" ? "derivative" : "limit";
+    if (mode === target) {
+      return;
+    }
+    mode = target;
+    unlockDerivative();
+    clearError();
+    hideFuncHint();
+    if (modeLimitTab) {
+      var limitActive = target === "limit";
+      modeLimitTab.classList.toggle("is-active", limitActive);
+      modeLimitTab.setAttribute("aria-selected", limitActive ? "true" : "false");
+    }
+    if (modeDerivTab) {
+      var derivActive = target === "derivative";
+      modeDerivTab.classList.toggle("is-active", derivActive);
+      modeDerivTab.setAttribute("aria-selected", derivActive ? "true" : "false");
+    }
+    if (limitParams) {
+      limitParams.hidden = target === "derivative";
+    }
+    if (derivativeParams) {
+      derivativeParams.hidden = target !== "derivative";
+    }
+    if (exprLabel) {
+      var textNode = exprLabel.firstChild;
+      if (textNode && textNode.nodeType === 3) {
+        textNode.nodeValue =
+          "\n          " +
+          (target === "derivative"
+            ? "关于 x 的表达式与求导点"
+            : "关于 x 的表达式与趋近点") +
+          "\n          ";
+      }
+    }
+    if (observeBtn && !busy) {
+      observeBtn.textContent = target === "derivative" ? "计算求导" : "观测极限";
+    }
+    if (resultTitle) {
+      resultTitle.textContent =
+        target === "derivative" ? "求导结果" : "观测结果";
+    }
+    if (resultKicker) {
+      resultKicker.textContent =
+        target === "derivative" ? "02 / DERIVATIVE" : "02 / OBSERVATION";
+    }
+    setPlotCaption(target);
+    if (target === "limit") {
+      plotOverlay = null;
+      if (plotTip) {
+        plotTip.hidden = true;
+      }
+    }
+    if (resultSection && !resultSection.hidden) {
+      if (target === "derivative" && !lastDerivative) {
+        resultSection.hidden = true;
+      } else {
+        showResultCardsForMode(target);
+      }
+    }
+    if (lastPlot) {
+      drawPlot(lastPlot);
+    }
+    setApiStatus(
+      "ready",
+      target === "derivative"
+        ? "本地引擎就绪 · 可计算导数"
+        : "本地引擎就绪 · 可继续观测"
+    );
+    updateDerivativePrecheck();
+  }
+
+  function schedulePrecheck() {
+    clearTimeout(precheckTimer);
+    precheckTimer = setTimeout(updateDerivativePrecheck, 220);
+  }
+
+  function updateDerivativePrecheck() {
+    if (mode !== "derivative" || !centerInput) {
+      return;
+    }
+    var raw = (centerInput.value || "").trim();
+    if (!raw) {
+      if (funcHint) {
+        funcHint.hidden = false;
+        funcHint.textContent = "求导点 x₀ 不能为空：请填 0、1、pi/2 之类的常数。";
+      }
+      if (observeBtn && !busy) {
+        observeBtn.disabled = true;
+      }
+      return;
+    }
+    if (funcHint && funcHint.textContent.indexOf("求导点 x₀ 不能为空") === 0) {
+      hideFuncHint();
+    }
+    if (observeBtn && !busy && !derivativeLocked) {
+      observeBtn.disabled = false;
+    }
+  }
+
+  function buildDerivativeSentence(result) {
+    var order = result.derivative_order || 1;
+    var mark = order === 1 ? "'" : order === 2 ? "''" : "^{(" + order + ")}";
+    return (
+      "f" +
+      mark +
+      "\\left(" +
+      (result.center_latex || "0") +
+      "\\right) = " +
+      (result.slope_latex || "0")
+    );
+  }
+
+  function formatNumberText(value) {
+    if (typeof value === "number" && isFinite(value)) {
+      return String(Math.round(value * 1e10) / 1e10);
+    }
+    return "—";
+  }
+
+  function renderDerivativeResult(result) {
+    var expression = result.expression || input.value.trim();
+    var centerText = result.center_text || "0";
+    var order = result.derivative_order || 1;
+
+    lastDerivative = result;
+    unlockDerivative();
+    if (derivFormula) {
+      derivFormula.classList.remove("is-alert");
+    }
+
+    updateCenterLabels(centerText);
+    if (derivLabel) {
+      derivLabel.textContent = "DERIVATIVE FOUND";
+    }
+    if (derivStatus) {
+      derivStatus.textContent = "可导";
+    }
+    if (derivFormula) {
+      renderMath(derivFormula, buildDerivativeSentence(result), true);
+    }
+    if (derivSlope) {
+      derivSlope.textContent =
+        typeof result.slope_num === "number"
+          ? formatNumberText(result.slope_num)
+          : result.slope || "—";
+    }
+    if (derivY0) {
+      derivY0.textContent =
+        typeof result.y0_num === "number"
+          ? formatNumberText(result.y0_num)
+          : result.y0 || "—";
+    }
+    if (derivOrder) {
+      derivOrder.textContent = "n = " + order;
+    }
+    if (derivTangent) {
+      renderMath(derivTangent, result.tangent_latex || "—", false);
+    }
+    if (derivPointSlope) {
+      renderMath(derivPointSlope, result.tangent_point_latex || "", false);
+    }
+    if (derivNote) {
+      derivNote.textContent =
+        "曲线为原函数 f(x)；红色虚线是 x₀ 处的切线，红点为切点 (x₀, f(x₀))。";
+    }
+    if (plotCaption) {
+      plotCaption.textContent = "红色虚线为切线 · 红点为切点 · 黄点为不可导点";
+    }
+
+    resultExpression.textContent = expression;
+    resultExpression.title = expression;
+    var normalized = result.normalized || "—";
+    resultNormalized.textContent = normalized;
+    resultNormalized.title = normalized;
+    resultCenter.textContent =
+      "x₀ = " + centerText + " · " + order + " 阶导数";
+    resultEngine.textContent = result.engine || "SymPy";
+    if (resultBreak) {
+      resultBreak.textContent = "不适用（求导模式）";
+      resultBreak.title = "";
+    }
+    resultTime.textContent =
+      (result.elapsed_ms || 0) + " ms · " + (result.engine || "SymPy");
+
+    if (limitCardEl) {
+      limitCardEl.hidden = true;
+    }
+    if (stepsCardEl) {
+      stepsCardEl.hidden = true;
+    }
+    if (derivativeCard) {
+      derivativeCard.hidden = false;
+    }
+
+    reportPreview.textContent = result.raw_report || "";
+    lastReport = result.raw_report || "";
+    lastFilename = result.report_filename || "Derivative_Report.md";
+    lastLatex = result.derivative_latex || "";
+    lastResultText =
+      "f(" +
+      order +
+      " 阶)(" +
+      centerText +
+      ") = " +
+      (result.slope || "?") +
+      "，切线 " +
+      (result.tangent_text || "");
+    downloadBtn.style.display = lastReport ? "inline-flex" : "none";
+    copyLatexBtn.style.display = lastLatex ? "inline-flex" : "none";
+    copyResultBtn.style.display = lastResultText ? "inline-flex" : "none";
+    copyReportBtn.style.display = lastReport ? "inline-flex" : "none";
+    downloadHint.textContent =
+      "报告包含原始函数、求导点与阶数、导数表达式与切线方程。";
+
+    lastPlot = result.plot || null;
+    fullPlot = lastPlot;
+    plotZoom = null;
+    if (resetZoomBtn) {
+      resetZoomBtn.hidden = true;
+    }
+    if (fullRangeBtn) {
+      fullRangeBtn.hidden = true;
+    }
+    if (zoomBox) {
+      zoomBox.hidden = true;
+    }
+    clearRangeError();
+    plotOverlay = null;
+    if (
+      typeof result.x0_num === "number" &&
+      typeof result.y0_num === "number" &&
+      typeof result.slope_num === "number"
+    ) {
+      plotOverlay = {
+        kind: "tangent",
+        x0: result.x0_num,
+        y0: result.y0_num,
+        k: result.slope_num,
+        hint: "切点 (x₀, f(x₀))"
+      };
+    }
+    if (plotTip) {
+      plotTip.hidden = true;
+    }
+    resultSection.hidden = false;
+    errorBox.hidden = true;
+    replayAnimation(resultSection);
+    drawPlot(lastPlot);
+    pendingPlotAnimation = motionMode === "animated";
+    tryStartPlotAnimation();
+  }
+
+  function renderDerivativeBlocked(result) {
+    var reason = result.reason || result.error || "该点不可导。";
+    var isDomain = result.error_code === "DOMAIN_ERROR";
+    var headline =
+      result.headline ||
+      (isDomain
+        ? "该点无定义或趋于无穷，无法求导。"
+        : "该点不可导（可能存在尖点、断点或无穷导数）。");
+
+    lastDerivative = result;
+    lockDerivative();
+    showBanner(reason);
+    setApiStatus(
+      "warn",
+      isDomain ? "定义域错误 · 该点无定义" : "尖点 / 不可导预警"
+    );
+
+    if (derivLabel) {
+      derivLabel.textContent = isDomain ? "DOMAIN ERROR" : "NOT DIFFERENTIABLE";
+    }
+    if (derivStatus) {
+      derivStatus.textContent = isDomain ? "定义域错误" : "不可导";
+    }
+    if (derivFormula) {
+      derivFormula.textContent = reason;
+      derivFormula.classList.add("is-alert");
+    }
+    if (derivSlope) {
+      derivSlope.textContent = "—";
+    }
+    if (derivY0) {
+      derivY0.textContent =
+        typeof result.y0_num === "number"
+          ? formatNumberText(result.y0_num)
+          : "—";
+    }
+    if (derivOrder) {
+      derivOrder.textContent = "n = " + (result.derivative_order || 1);
+    }
+    if (derivTangent) {
+      derivTangent.textContent = "—";
+    }
+    if (derivPointSlope) {
+      derivPointSlope.textContent = "";
+    }
+    if (derivNote) {
+      derivNote.textContent =
+        "无法绘制切线：该点不可导或无定义，黄色标记即问题位置。";
+    }
+    if (plotCaption) {
+      plotCaption.textContent = "该点不可导或无定义 · 黄色标记为问题位置";
+    }
+    resultExpression.textContent = result.expression || input.value.trim();
+    resultExpression.title = resultExpression.textContent;
+    var blockedNormalized =
+      result.normalized || result.expression_latex || "—";
+    resultNormalized.textContent = blockedNormalized;
+    resultNormalized.title = blockedNormalized;
+    resultCenter.textContent =
+      "x₀ = " +
+      (result.center_text || "0") +
+      " · " +
+      (result.derivative_order || 1) +
+      " 阶导数";
+    resultEngine.textContent = result.engine || "SymPy";
+    if (resultBreak) {
+      resultBreak.textContent = "不适用（求导模式）";
+      resultBreak.title = "";
+    }
+    resultTime.textContent =
+      (result.elapsed_ms || 0) + " ms · " + (result.engine || "SymPy");
+
+    if (limitCardEl) {
+      limitCardEl.hidden = true;
+    }
+    if (stepsCardEl) {
+      stepsCardEl.hidden = true;
+    }
+    if (derivativeCard) {
+      derivativeCard.hidden = false;
+    }
+
+    reportPreview.textContent = result.raw_report || "";
+    lastReport = result.raw_report || "";
+    lastFilename = result.report_filename || "Derivative_Report.md";
+    lastLatex = "";
+    lastResultText = "求导失败：" + reason;
+    downloadBtn.style.display = lastReport ? "inline-flex" : "none";
+    copyLatexBtn.style.display = "none";
+    copyResultBtn.style.display = "inline-flex";
+    copyReportBtn.style.display = lastReport ? "inline-flex" : "none";
+    downloadHint.textContent = "失败报告同样可下载，包含失败阶数与原因。";
+
+    lastPlot = result.plot || null;
+    fullPlot = lastPlot;
+    plotZoom = null;
+    if (resetZoomBtn) {
+      resetZoomBtn.hidden = true;
+    }
+    if (fullRangeBtn) {
+      fullRangeBtn.hidden = true;
+    }
+    if (zoomBox) {
+      zoomBox.hidden = true;
+    }
+    clearRangeError();
+    plotOverlay = null;
+    if (typeof result.x0_num === "number") {
+      plotOverlay = {
+        kind: "na",
+        x0: result.x0_num,
+        y0: typeof result.y0_num === "number" ? result.y0_num : null,
+        hint: isDomain ? "该点无定义" : "该点无切线"
+      };
+    }
+    if (plotTip) {
+      plotTip.hidden = true;
+    }
+    resultSection.hidden = false;
+    replayAnimation(resultSection);
+    drawPlot(lastPlot);
   }
 
   function copyText(text, label) {
@@ -1348,14 +1956,54 @@
 
     autoRan = true;
     clearTimeout(autoRunTimer);
-    setLoading(true);
-    setApiStatus("busy", "正在展开泰勒级数…");
 
     var center = centerInput.value.trim() || "0";
     var order = orderSelect.value || "6";
     var direction = directionSelect ? directionSelect.value : "auto";
+    var derivativeOrder = derivativeOrderSelect
+      ? derivativeOrderSelect.value || "1"
+      : "1";
+
+    if (mode === "derivative" && !center) {
+      updateDerivativePrecheck();
+      showError("求导点 x₀ 不能为空：请填 0、1、pi/2 之类的常数。");
+      return;
+    }
+
+    setLoading(true);
+    setApiStatus(
+      "busy",
+      mode === "derivative" ? "正在求导并计算切线…" : "正在展开泰勒级数…"
+    );
 
     try {
+      if (mode === "derivative") {
+        var derivativeResult = await withTimeout(
+          window.pywebview.api.solve_derivative(
+            expression,
+            center,
+            derivativeOrder
+          ),
+          15000,
+          "求导计算"
+        );
+        if (!derivativeResult || typeof derivativeResult !== "object") {
+          throw new Error("计算引擎返回了空结果。");
+        }
+        if (!derivativeResult.success) {
+          if (
+            derivativeResult.error_code === "NOT_DIFFERENTIABLE" ||
+            derivativeResult.error_code === "DOMAIN_ERROR"
+          ) {
+            renderDerivativeBlocked(derivativeResult);
+            return;
+          }
+          throw new Error(derivativeResult.error || "求导失败，请检查表达式。");
+        }
+        renderDerivativeResult(derivativeResult);
+        setApiStatus("ok", "导数计算成功 · 切线已高亮");
+        return;
+      }
       var result = await withTimeout(
         window.pywebview.api.solve_limit(expression, center, order, direction),
         15000,
@@ -1494,7 +2142,9 @@
     }
     userInteracted = true;
     clearError();
+    unlockDerivative();
     refreshFuncHint();
+    schedulePrecheck();
   });
 
   centerInput.addEventListener("input", function (event) {
@@ -1504,6 +2154,8 @@
     normalizeField(centerInput);
     userInteracted = true;
     clearError();
+    unlockDerivative();
+    schedulePrecheck();
   });
 
   input.addEventListener("keydown", function (event) {
@@ -1808,6 +2460,58 @@
       }
     });
   }
+  if (modeLimitTab) {
+    modeLimitTab.addEventListener("click", function () {
+      setMode("limit");
+    });
+  }
+
+  if (modeDerivTab) {
+    modeDerivTab.addEventListener("click", function () {
+      setMode("derivative");
+    });
+  }
+
+  if (derivativeOrderSelect) {
+    derivativeOrderSelect.addEventListener("change", function () {
+      unlockDerivative();
+      clearError();
+      updateDerivativePrecheck();
+    });
+  }
+
+  if (plotCanvas) {
+    plotCanvas.addEventListener("mousemove", function (event) {
+      if (!plotTip) {
+        return;
+      }
+      var hit = overlayMarkerPixel();
+      if (!hit) {
+        plotTip.hidden = true;
+        return;
+      }
+      var rect = plotCanvas.getBoundingClientRect();
+      var mx = event.clientX - rect.left;
+      var my = event.clientY - rect.top;
+      var distance = Math.sqrt(
+        (mx - hit.x) * (mx - hit.x) + (my - hit.y) * (my - hit.y)
+      );
+      if (distance <= 15) {
+        plotTip.textContent = plotOverlay.hint || "该点无切线";
+        plotTip.style.left = plotCanvas.offsetLeft + hit.x + "px";
+        plotTip.style.top = plotCanvas.offsetTop + hit.y + "px";
+        plotTip.hidden = false;
+      } else {
+        plotTip.hidden = true;
+      }
+    });
+    plotCanvas.addEventListener("mouseleave", function () {
+      if (plotTip) {
+        plotTip.hidden = true;
+      }
+    });
+  }
+
   document.addEventListener("keydown", function (event) {
     if (event.key === "Escape" && helpModal && !helpModal.hidden) {
       closeHelp();
