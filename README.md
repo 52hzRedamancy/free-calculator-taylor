@@ -1,4 +1,4 @@
-# 自由计算器 v1.3.0 · 泰勒极限观测引擎
+# 自由计算器 v1.3.2 · 泰勒极限观测引擎
 
 一个完全离线的 Windows 桌面数学工具：用 SymPy 计算函数在任意趋近点 `x → a` 的极限，同时输出 `1` 到 `N` 阶泰勒展开，并逐阶代入 `x = a` 观察结果，附带本地采样的函数曲线。界面由 pywebview 承载，公式由本地 KaTeX 渲染，全程不请求任何 CDN 或在线字体。
 
@@ -55,7 +55,7 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-程序会打开标题为「自由计算器 v1.3.0」的窗口。输入表达式与趋近点后点击「观测极限」，或按 `Ctrl + Enter`。
+程序会打开标题为「自由计算器 v1.3.2」的窗口。输入表达式与趋近点后点击「观测极限」，或按 `Ctrl + Enter`。
 
 ### 允许的语法
 
@@ -89,6 +89,14 @@ pyinstaller --noconsole --add-data "index.html;." --add-data "assets;assets" --a
 - `--hidden-import clr`
 - 排除 torch / matplotlib / PyQt5 等无关重量级依赖
 - `--icon assets/app.ico`
+
+打包完成后可再生成便携压缩包（解压即用，已内置运行环境）：
+
+```bat
+python make_zip.py
+```
+
+产物 `FreeCalculator_Portable.zip` 约 24 MB，内含 `使用说明.txt`。
 
 输出：`dist\FreeCalculator\FreeCalculator.exe`（exe 约 15 MB，完整目录约 38 MB）。已排除 numpy（减少约 42 MB）与陈旧的 `core\__pycache__`，字体只保留 woff2。必须保留整个 `FreeCalculator` 文件夹（含 `_internal`），不能只复制 exe。
 
@@ -153,13 +161,19 @@ WebView2 会弹出系统「另存为」对话框，选择位置即可保存 Mark
 
 ## 版本
 
-- 应用：1.3.0
+- 应用：1.3.2
 - pywebview：6.2.1
 - SymPy：1.13.2
 - PyInstaller：6.22.1
 - KaTeX：0.16.8
 - Pico.css：1.5.13
 - 前端：原生 HTML/CSS/JS，无构建步骤
+
+## 更新日志
+
+- **v1.3.2**（2026-11-13）：合入便携版打包脚本 \(make_zip.py\)，一条命令产出免安装的 \(FreeCalculator_Portable.zip\)；窗口标题、页面标题、报告页脚与构建脚本里的版本号统一为 1.3.2；工作树收敛调试残留文件。
+- **v1.3.1**（2026-10-29）：新增便携版打包脚本并重新打包部署桌面版。
+- **v1.3.0**（2026-10-28）：任意趋近点、左右/双侧极限、1–10 阶逐阶观测、图表框选缩放与导轨式生长动画、可选键盘区间重播、断点类型判定、函数手册、推导报告下载。
 
 ## 许可与素材
 
