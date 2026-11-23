@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# PyInstaller 构建产物
+build/
+dist/
+*.zip
+
+# 运行时残留
+crash.log
+_data/
+*.log
+build_log.txt
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

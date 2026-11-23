@@ -1,0 +1,471 @@
+/* =========================================================
+   开屏 v1.3 · DeepSeek 专业工作模式
+   参照 B 站「黑色大肥鱼启动」的开场视频：
+   黑底 DeepSeek 标识 → 欢迎来到专业工作模式 → 鲸鱼娘壁纸揭幕 → 交叉叠化进界面
+   壁纸素材：B 站 BV1wspE6EE8b 封面（LeeRolling/dsh-chat-wallpaper 演示）
+   ========================================================= */
+
+.splash {
+  --splash-dur: 3s;
+  --mx: 0;
+  --my: 0;
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  overflow: hidden;
+  cursor: pointer;
+  background: #010409;
+  perspective: 1200px;
+  perspective-origin: 50% 44%;
+  animation: none;
+  transition: opacity 0.6s ease, visibility 0.6s ease;
+  pointer-events: auto;
+}
+
+.splash.is-gone {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.splash-scene {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateY(calc(var(--mx) * 1.6deg)) rotateX(calc(var(--my) * -1.2deg));
+  transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.splash-art {
+  position: absolute;
+  inset: 0;
+  background: url("img/deepseek_mode.webp") 46% 40% / cover no-repeat;
+  opacity: 0;
+  filter: brightness(0.82) saturate(1.02) contrast(1.03);
+  transform: scale(1.08);
+  animation: art-reveal var(--splash-dur) cubic-bezier(0.3, 0.1, 0.2, 1) both;
+}
+
+.splash-wash {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(760px 560px at 32% 48%, rgba(15, 90, 150, 0.14), transparent 68%),
+    linear-gradient(
+      180deg,
+      rgba(1, 5, 10, 0.5) 0%,
+      rgba(1, 5, 10, 0.06) 34%,
+      rgba(1, 5, 10, 0.32) 52%,
+      rgba(1, 5, 10, 0.9) 80%,
+      rgba(1, 5, 10, 0.96) 100%
+    ),
+    radial-gradient(
+      ellipse 80% 70% at 55% 45%,
+      transparent 30%,
+      rgba(0, 3, 8, 0.62) 100%
+    );
+}
+
+.splash-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.splash-particles span {
+  position: absolute;
+  left: var(--x);
+  bottom: -6%;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: rgba(150, 235, 255, 0.85);
+  box-shadow: 0 0 9px rgba(120, 225, 255, 0.8), 0 0 20px rgba(80, 200, 255, 0.3);
+  opacity: 0;
+  animation: particle-rise var(--d) linear var(--delay) infinite;
+}
+
+.splash-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -20%;
+  height: 22%;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(120, 220, 255, 0.05) 44%,
+    rgba(190, 245, 255, 0.14) 50%,
+    transparent 56%
+  );
+  mix-blend-mode: screen;
+  animation: scan-sweep calc(var(--splash-dur) * 1.2) ease-in-out infinite;
+}
+
+/* ── 第一幕：黑底 DeepSeek 开机标识 ─────────────────────────────── */
+
+.splash-boot {
+  position: absolute;
+  z-index: 6;
+  left: 9vw;
+  top: 47%;
+  width: min(560px, 72vw);
+  transform: translateY(-50%);
+  animation: boot-out var(--splash-dur) ease both;
+}
+
+.splash-boot-kicker {
+  display: block;
+  color: rgba(139, 232, 255, 0.72);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.34em;
+}
+
+.splash-boot-logo {
+  margin: 0.15em 0 0.1em;
+  color: #e8f7ff;
+  font-family: var(--sans);
+  font-size: clamp(2.5rem, 4.6vw, 4.2rem);
+  font-weight: 700;
+  letter-spacing: -0.055em;
+  line-height: 1;
+  text-shadow: 0 0 34px rgba(120, 225, 255, 0.55), 0 0 90px rgba(70, 160, 255, 0.3);
+  animation: logo-in calc(var(--splash-dur) * 0.36) ease both;
+}
+
+.splash-boot-welcome {
+  margin-top: 0.6rem;
+  color: #cfefff;
+  font-size: 1rem;
+  letter-spacing: 0.3em;
+  animation: boot-line var(--splash-dur) 0.18s both;
+}
+
+.splash-boot-en {
+  margin-top: 0.35rem;
+  color: rgba(150, 205, 230, 0.66);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.4em;
+  animation: boot-line var(--splash-dur) 0.3s both;
+}
+
+.splash-term {
+  margin-top: 1.6rem;
+  color: rgba(120, 226, 210, 0.82);
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  line-height: 1.9;
+  letter-spacing: 0.04em;
+}
+
+.splash-term span {
+  display: block;
+  animation: term-line var(--splash-dur) calc(var(--splash-dur) * 0.16 * var(--d))
+    both;
+}
+
+.splash-caret {
+  display: inline-block;
+  width: 0.5em;
+  color: #7dffd2;
+  animation: caret-blink 0.8s steps(1) infinite;
+}
+
+/* ── 第二幕：鲸鱼娘壁纸 + 应用名 ───────────────────────────────── */
+
+.splash-copy {
+  position: absolute;
+  z-index: 7;
+  left: 9vw;
+  bottom: 10vh;
+  width: min(620px, 78vw);
+  margin: 0;
+  text-align: left;
+  opacity: 0;
+  animation: copy-in var(--splash-dur) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.splash-copy::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -36% -18% -22% -18%;
+  background: radial-gradient(
+    ellipse at 28% 58%,
+    rgba(1, 5, 11, 0.88) 0%,
+    rgba(1, 5, 11, 0.62) 46%,
+    transparent 74%
+  );
+  filter: blur(6px);
+  pointer-events: none;
+}
+
+.splash-kicker {
+  color: rgba(160, 230, 255, 0.8);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.3em;
+}
+
+.splash-copy h1 {
+  margin: 0.24em 0 0.1em;
+  color: #f2fbff;
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  font-size: clamp(2.6rem, 5.4vw, 4.6rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  text-shadow: 0 0 46px rgba(110, 225, 255, 0.55), 0 0 110px rgba(50, 150, 255, 0.3);
+}
+
+.splash-copy p {
+  margin: 0.4rem 0 1.4rem;
+  color: rgba(190, 228, 244, 0.78);
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+}
+
+.splash-loader {
+  width: min(260px, 52vw);
+  height: 2px;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(120, 225, 255, 0.16);
+  box-shadow: 0 0 18px rgba(60, 200, 255, 0.18);
+}
+
+.splash-loader span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, #6fe9ff, #9dffd8);
+  box-shadow: 0 0 14px rgba(110, 230, 255, 0.8);
+  transform-origin: left;
+  animation: splash-load var(--splash-dur) cubic-bezier(0.35, 0, 0.2, 1) both;
+}
+
+.splash-copy small {
+  display: block;
+  margin-top: 0.9rem;
+  color: rgba(160, 200, 220, 0.65);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+}
+
+.splash-badge {
+  position: absolute;
+  z-index: 7;
+  left: 9vw;
+  bottom: 5.5vh;
+  color: rgba(130, 200, 225, 0.5);
+  font-family: var(--mono);
+  font-size: 0.54rem;
+  letter-spacing: 0.2em;
+}
+
+.splash-skip {
+  position: absolute;
+  z-index: 8;
+  right: 30px;
+  bottom: 24px;
+  color: rgba(150, 205, 225, 0.6);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.09em;
+  pointer-events: none;
+}
+
+/* ── 应用主界面背景：同一张壁纸压暗铺底 ───────────────────────── */
+
+.page-art {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  background: url("img/deepseek_mode.webp") 80% 32% / cover no-repeat;
+  opacity: 0.62;
+  filter: brightness(0.66) saturate(0.98);
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 42%,
+    rgba(0, 0, 0, 0.12) 58%,
+    #000 78%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 42%,
+    rgba(0, 0, 0, 0.12) 58%,
+    #000 78%
+  );
+}
+
+.page-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(2, 8, 15, 0.55) 0%,
+    transparent 30%,
+    rgba(2, 8, 15, 0.92) 100%
+  );
+}
+
+/* 主界面已有壁纸，隐藏旧的鲸鱼娘底纹，避免两层人物叠在一起 */
+body::before {
+  display: none;
+}
+
+@keyframes art-reveal {
+  0%,
+  34% {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+  62% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes boot-out {
+  0%,
+  46% {
+    opacity: 1;
+  }
+  60%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes logo-in {
+  from {
+    opacity: 0;
+    letter-spacing: 0.06em;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    letter-spacing: -0.055em;
+    filter: none;
+  }
+}
+
+@keyframes boot-line {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  18%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes term-line {
+  0% {
+    opacity: 0;
+  }
+  12%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes copy-in {
+  0%,
+  52% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  76%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes caret-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes particle-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.6);
+  }
+  14% {
+    opacity: 0.8;
+  }
+  78% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-74vh) scale(1);
+  }
+}
+
+@keyframes scan-sweep {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(560%);
+    opacity: 0;
+  }
+}
+
+@keyframes splash-load {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (max-width: 900px) {
+  .splash-boot,
+  .splash-copy,
+  .splash-badge {
+    left: 6vw;
+  }
+  .splash-boot-logo {
+    font-size: clamp(2.2rem, 9vw, 3.2rem);
+  }
+  .splash-copy h1 {
+    font-size: clamp(2.2rem, 10vw, 3.4rem);
+  }
+  .splash-boot-welcome {
+    letter-spacing: 0.18em;
+  }
+}

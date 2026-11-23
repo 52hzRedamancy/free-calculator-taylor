@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark" data-skin="maid">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>自由计算器 v1.5.0</title>
+  <link rel="stylesheet" href="assets/pico.min.css">
+  <link rel="stylesheet" href="assets/katex.min.css">
+  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/splash-v3.css">
+</head>
+<body>
+  <div class="splash" id="splash" aria-hidden="true">
+    <div class="splash-scene">
+      <div class="splash-art"></div>
+      <div class="splash-wash"></div>
+      <div class="splash-particles" id="splashParticles"></div>
+      <div class="splash-scan"></div>
+    </div>
+    <div class="splash-boot">
+      <span class="splash-boot-kicker">DEEPSEEK · AI ASSISTANT</span>
+      <div class="splash-boot-logo">DeepSeek</div>
+      <div class="splash-boot-welcome">欢迎来到专业工作模式</div>
+      <div class="splash-boot-en">PROFESSIONAL WORK MODE</div>
+      <div class="splash-term">
+        <span style="--d: 0">&gt; initializing dreams...</span>
+        <span style="--d: 1">&gt; loading local math engine...</span>
+        <span style="--d: 2">&gt; ready<span class="splash-caret">▌</span></span>
+      </div>
+    </div>
+    <div class="splash-copy">
+      <h1>自由计算器</h1>
+      <p>极限 / 求导 / 积分 · 微积分引擎</p>
+      <div class="splash-loader"><span></span></div>
+      <small>正在载入本地数学引擎</small>
+    </div>
+    <span class="splash-badge">WHALE-01 // BOOT SEQUENCE</span>
+    <span class="splash-skip">点击任意处 / Esc 跳过</span>
+    <script>
+      (function () {
+        // 关掉 WebView2 的滚动位置恢复，避免一打开就停在半截页面
+        if ("scrollRestoration" in history) {
+          history.scrollRestoration = "manual";
+        }
+        window.scrollTo(0, 0);
+
+        var SKINS = {
+          maid: "maid_whale.png",
+          orca: "orca_whale.png",
+          chibi: "chibi_whale.png"
+        };
+        var skin = localStorage.getItem("freecalc.skin") || "maid";
+        if (!SKINS[skin]) skin = "maid";
+        document.documentElement.dataset.skin = skin;
+        document.documentElement.dataset.mascotFile = SKINS[skin];
+        document.documentElement.style.setProperty(
+          "--mascot-bg",
+          'url("assets/img/' + SKINS[skin] + '")'
+        );
+
+        var duration = parseFloat(localStorage.getItem("freecalc.splash"));
+        if (!isFinite(duration) || duration <= 0) duration = 3;
+        duration = Math.min(3, Math.max(1, duration));
+
+        var splash = document.getElementById("splash");
+        if (splash) {
+          splash.style.setProperty("--splash-dur", duration + "s");
+          splash.dataset.duration = String(duration);
+
+          var host = document.getElementById("splashParticles");
+          if (host) {
+            for (var i = 0; i < 30; i += 1) {
+              var dot = document.createElement("span");
+              dot.style.setProperty("--x", (Math.random() * 100).toFixed(2) + "%");
+              dot.style.setProperty("--d", (2.4 + Math.random() * 2.8).toFixed(2) + "s");
+              dot.style.setProperty("--delay", (-Math.random() * 5).toFixed(2) + "s");
+              dot.style.setProperty("--size", (1 + Math.random() * 2.6).toFixed(1) + "px");
+              host.appendChild(dot);
+            }
+          }
+
+          splash.addEventListener("mousemove", function (event) {
+            var rect = splash.getBoundingClientRect();
+            var mx = (event.clientX - rect.left) / rect.width - 0.5;
+            var my = (event.clientY - rect.top) / rect.height - 0.5;
+            splash.style.setProperty("--mx", mx.toFixed(3));
+            splash.style.setProperty("--my", my.toFixed(3));
+          });
+          splash.addEventListener("mouseleave", function () {
+            splash.style.setProperty("--mx", "0");
+            splash.style.setProperty("--my", "0");
+          });
+        }
+      })();
+    </script>
+  </div>
+
+  <div class="page-art" aria-hidden="true"></div>
+
+  <div class="ambient-orb orb-a" aria-hidden="true"></div>
+  <div class="ambient-orb orb-b" aria-hidden="true"></div>
+
+  <button type="button" id="helpBtn" class="help-fab" title="函数手册（点击插入函数）" aria-haspopup="dialog" aria-controls="helpModal">?</button>
+
+  <div class="help-modal" id="helpModal" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
+    <div class="help-dialog">
+      <div class="help-head">
+        <div>
+          <span class="section-kicker">FUNCTION MANUAL</span>
+          <h3 id="helpTitle">函数手册</h3>
+        </div>
+        <button type="button" class="help-close" id="helpClose" aria-label="关闭函数手册">×</button>
+      </div>
+      <p class="help-tip">点击胶囊把函数插入到输入框光标处；函数必须带括号，例如 <code>sin(x)</code>。</p>
+      <div class="help-grid" id="helpGrid"></div>
+      <p class="help-foot">大写 <code>X</code> 会按 <code>x</code> 处理，中文全角括号与运算符会自动转半角。</p>
+    </div>
+  </div>
+
+  <main class="container app-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">
+          <span class="eyebrow-mark"></span>
+          FREE CALCULATOR <i>/</i> V1.5.0
+        </div>
+        <h1 id="heroTitle">极限观测<span id="heroSubtitle">自由计算器 · 泰勒极限引擎</span></h1>
+        <p class="hero-lede" id="heroLede">
+          极限观测、任意点 1 到 5 阶求导与切线、定/不定积分一站式完成；
+          积分自带 3 秒快速失败与泰勒近似降级，奇点发散、尖点断点当场拦截。
+          所有计算都在你的电脑上完成。
+        </p>
+        <div class="hero-badges" id="heroBadges" aria-label="产品特性">
+          <span><b></b>本地 SymPy</span>
+          <span><b></b>极限 · 1–5 阶导数</span>
+          <span><b></b>定/不定积分</span>
+          <span><b></b>泰勒近似降级</span>
+        </div>
+        <div class="hero-controls" aria-label="外观与曲线效果">
+          <label for="skinSelect">
+            皮肤
+            <select id="skinSelect">
+              <option value="maid">深海女仆</option>
+              <option value="orca">虎鲸链路</option>
+              <option value="chibi">Q版鲸鱼娘</option>
+            </select>
+          </label>
+          <label for="motionSelect">
+            曲线效果
+            <select id="motionSelect">
+              <option value="animated">动态</option>
+              <option value="static">静态</option>
+            </select>
+          </label>
+          <label for="splashSelect">
+            开屏
+            <select id="splashSelect" title="下次启动生效">
+              <option value="1">1 秒</option>
+              <option value="2">2 秒</option>
+              <option value="3">3 秒</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="orbit orbit-outer"></div>
+        <div class="orbit orbit-inner"></div>
+        <div class="mascot-halo"></div>
+        <img id="heroMascot" src="assets/img/chibi_whale.png" alt="" title="点击切换鲸鱼娘皮肤">
+        <span class="art-tag">WHALE // ASSIST</span>
+        <span class="art-coord">00.000 / ∞</span>
+        <span class="art-hint">点击头像切换皮肤</span>
+      </div>
+    </header>
+
+    <section class="panel console-card" aria-labelledby="inputTitle">
+      <div class="panel-heading">
+        <div>
+          <span class="section-kicker">01 / INPUT</span>
+          <h2 id="inputTitle">输入函数表达式</h2>
+        </div>
+        <span class="live-chip"><i></i>LOCAL ENGINE</span>
+      </div>
+
+      <div class="mode-tabs" role="tablist" aria-label="观测模式">
+        <button type="button" class="mode-tab is-active" id="modeLimitTab" role="tab" aria-selected="true" data-mode="limit">
+          <span class="mode-tab-kicker">LIMIT</span>
+          <span class="mode-tab-text">极限观测</span>
+        </button>
+        <button type="button" class="mode-tab" id="modeDerivTab" role="tab" aria-selected="false" data-mode="derivative">
+          <span class="mode-tab-kicker">DERIVATIVE</span>
+          <span class="mode-tab-text">微分求导</span>
+        </button>
+        <button type="button" class="mode-tab" id="modeIntegralTab" role="tab" aria-selected="false" data-mode="integral">
+          <span class="mode-tab-kicker">INTEGRAL</span>
+          <span class="mode-tab-text">积分计算</span>
+        </button>
+      </div>
+
+      <form id="calcForm" novalidate>
+        <label for="expression" id="exprLabel">
+          关于 x 的表达式与求导点
+          <span>sin · cos · tan · exp · ln · log · sqrt · abs · pi · e</span>
+        </label>
+        <div class="input-row">
+          <div class="limit-input">
+            <span class="limit-tag" id="limitTag">f′<small>x₀</small></span>
+            <input
+              id="centerInput"
+              class="center-input"
+              type="text"
+              value="1"
+              placeholder="1"
+              aria-label="趋近点"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              title="趋近点：常数（0、1、pi/2、-2…）或 oo"
+            >
+            <input
+              id="expression"
+              name="expression"
+              type="text"
+              value="x**3 - 3*x"
+              placeholder="x**3 - 3*x"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              aria-describedby="inputHint"
+            >
+          </div>
+          <button type="submit" id="observeBtn">观测极限</button>
+        </div>
+
+        <div class="param-row" id="limitParams" hidden>
+          <label class="order-field" for="directionSelect">
+            极限方向
+            <select id="directionSelect" aria-label="极限方向">
+              <option value="auto" selected>自动</option>
+              <option value="right">右极限</option>
+              <option value="left">左极限</option>
+              <option value="both">双侧</option>
+            </select>
+          </label>
+          <label class="order-field" for="orderSelect">
+            展开阶数
+            <select id="orderSelect" aria-label="展开阶数">
+              <option value="1">1 阶</option>
+              <option value="2">2 阶</option>
+              <option value="3">3 阶</option>
+              <option value="4">4 阶</option>
+              <option value="5">5 阶</option>
+              <option value="6" selected>6 阶</option>
+              <option value="7">7 阶</option>
+              <option value="8">8 阶</option>
+              <option value="9">9 阶</option>
+              <option value="10">10 阶</option>
+            </select>
+          </label>
+          <p class="input-hint" id="inputHint">
+            趋近点可填常数或 <code>oo</code>；输入 <code>log(</code> 会自动补出底数位 <code>log(x, ▮)</code>；<code>2x</code> 会自动补乘号。
+          </p>
+        </div>
+
+        <div class="param-row" id="derivativeParams" hidden>
+          <label class="order-field" for="derivativeOrderSelect">
+            求导阶数
+            <select id="derivativeOrderSelect" aria-label="求导阶数">
+              <option value="1" selected>1 阶</option>
+              <option value="2">2 阶</option>
+              <option value="3">3 阶</option>
+              <option value="4">4 阶</option>
+              <option value="5">5 阶</option>
+            </select>
+          </label>
+          <p class="input-hint" id="derivativeHint">
+            在 <code>x₀</code> 处求 <code>n</code> 阶导数并画出切线；尖点、断点或导数为无穷时会被拦下。
+          </p>
+        </div>
+
+        <div class="param-row" id="integralParams" hidden>
+          <label class="order-field" for="lowerBoundInput">
+            积分下限
+            <input
+              id="lowerBoundInput"
+              class="bound-input"
+              type="text"
+              placeholder="留空 = 不定积分"
+              aria-label="积分下限"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+            >
+          </label>
+          <label class="order-field" for="upperBoundInput">
+            积分上限
+            <input
+              id="upperBoundInput"
+              class="bound-input"
+              type="text"
+              placeholder="留空 = 不定积分"
+              aria-label="积分上限"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+            >
+          </label>
+          <p class="input-hint" id="integralHint">
+            上下限都留空求<strong>不定积分</strong>（原函数族 F(x)+C）；成对填写求<strong>定积分</strong>（如 0 与 pi/2，支持 1/x 发散拦截）。
+          </p>
+        </div>
+        <p class="func-hint" id="funcHint" hidden></p>
+      </form>
+
+      <div class="example-row" aria-label="示例表达式">
+        <span>试一试</span>
+        <button type="button" class="example-chip" data-expression="x**3 - 3*x" data-center="1" data-lower="0" data-upper="2">三次曲线</button>
+        <button type="button" class="example-chip" data-expression="sin(x)" data-center="0" data-lower="0" data-upper="pi">sin(x)</button>
+        <button type="button" class="example-chip" data-expression="x**2 * sin(x)" data-center="0">x²·sin(x)</button>
+        <button type="button" class="example-chip" data-expression="log(x)" data-center="1">对数</button>
+        <button type="button" class="example-chip" data-expression="abs(x)" data-center="0">尖点 |x|</button>
+        <button type="button" class="example-chip" data-expression="sqrt(x)" data-center="0">无穷导数 √x</button>
+        <button type="button" class="example-chip" data-expression="1 / x" data-center="0" data-lower="-1" data-upper="1">发散 1/x</button>
+        <button type="button" class="example-chip" data-expression="exp(sin(x**2))" data-center="0">泰勒近似</button>
+        <button type="button" class="example-chip" data-expression="x * exp(-x**2)" data-center="0">高斯积分</button>
+      </div>
+
+      <div class="engine-row">
+        <p id="apiStatus" class="api-status" data-state="waiting">
+          <span class="status-dot"></span><span id="apiStatusText">正在连接本地引擎…</span>
+        </p>
+        <p class="privacy-note">离线运行 · 不上传表达式</p>
+      </div>
+
+      <div class="error-box" id="errorBox" role="alert" hidden>
+        <span class="error-icon">!</span>
+        <p id="errorText"></p>
+      </div>
+    </section>
+
+    <section class="results" id="resultSection" aria-labelledby="resultTitle" hidden>
+      <div class="result-heading">
+        <div>
+          <span class="section-kicker" id="resultKicker">02 / DERIVATIVE</span>
+          <h2 id="resultTitle">求导结果</h2>
+        </div>
+        <span class="result-time" id="resultTime">—</span>
+      </div>
+
+      <article class="derivative-card" id="derivativeCard" hidden>
+        <div class="limit-card-head">
+          <span class="limit-label" id="derivLabel">DERIVATIVE FOUND</span>
+          <span class="limit-status" id="derivStatus">可导</span>
+        </div>
+        <div class="deriv-formula" id="derivFormula" aria-live="polite"></div>
+        <div class="deriv-grid">
+          <div class="deriv-item">
+            <span>该点斜率 k = f<sup>(n)</sup>(x₀)</span>
+            <code id="derivSlope">—</code>
+          </div>
+          <div class="deriv-item">
+            <span>函数值 f(x₀)</span>
+            <code id="derivY0">—</code>
+          </div>
+          <div class="deriv-item">
+            <span>求导阶数</span>
+            <code id="derivOrder">n = 1</code>
+          </div>
+        </div>
+        <div class="deriv-expression" id="derivExpressionWrap">
+          <span class="deriv-expression-label">导数表达式</span>
+          <div id="derivExpression" class="deriv-expression-math" aria-live="polite"></div>
+        </div>
+        <div class="deriv-tangent">
+          <span>切线方程</span>
+          <div id="derivTangent" class="deriv-tangent-math"></div>
+          <p id="derivPointSlope" class="deriv-point-slope"></p>
+        </div>
+        <p class="deriv-note" id="derivNote"></p>
+      </article>
+
+      <article class="integral-card" id="integralCard" hidden>
+        <div class="limit-card-head">
+          <span class="limit-label" id="integralLabel">INTEGRAL FOUND</span>
+          <span class="limit-status" id="integralStatus">可积</span>
+        </div>
+        <div class="deriv-formula" id="integralFormula" aria-live="polite"></div>
+        <div class="deriv-grid">
+          <div class="deriv-item">
+            <span>原函数 F(x)</span>
+            <code id="integralAntiderivative">—</code>
+          </div>
+          <div class="deriv-item">
+            <span>积分值</span>
+            <code id="integralValue">—</code>
+          </div>
+          <div class="deriv-item">
+            <span>求解方式</span>
+            <code id="integralMethod">—</code>
+          </div>
+        </div>
+        <div class="deriv-tangent integral-method-note" id="integralMethodNote" hidden>
+          <span>METHOD</span>
+          <div id="integralMethodText" class="deriv-tangent-math"></div>
+        </div>
+        <p class="deriv-note" id="integralNote"></p>
+      </article>
+
+      <article class="limit-card" id="limitCard">
+        <div class="limit-card-head">
+          <span class="limit-label" id="limitLabel">LIMIT FOUND</span>
+          <span class="limit-status" id="limitStatus">收敛</span>
+        </div>
+        <div class="limit-formula" id="limitFormula" aria-live="polite"></div>
+        <div class="limit-foot">
+          <p id="limitNote">泰勒展开在趋近点附近稳定。</p>
+          <span id="limitApprox"></span>
+        </div>
+      </article>
+
+      <div class="overview-grid">
+        <article class="mini-card">
+          <span>原始表达式</span>
+          <code id="resultExpression">—</code>
+        </article>
+        <article class="mini-card">
+          <span>SymPy 解析</span>
+          <code id="resultNormalized">—</code>
+        </article>
+        <article class="mini-card">
+          <span>趋近点 / 阶数</span>
+          <code id="resultCenter">—</code>
+        </article>
+        <article class="mini-card">
+          <span>计算引擎</span>
+          <code id="resultEngine">—</code>
+        </article>
+        <article class="mini-card">
+          <span>断点类型</span>
+          <code id="resultBreak">—</code>
+        </article>
+      </div>
+
+      <article class="steps-card" id="stepsCard">
+        <div class="steps-head">
+          <div>
+            <span class="section-kicker">03 / TAYLOR TRACE</span>
+            <h3>逐阶展开观测</h3>
+          </div>
+          <p>每阶去除大 O 余项后，代入 <span class="inline-math" id="stepsCenterText">x = 0</span></p>
+        </div>
+        <div class="table-wrap">
+          <table class="steps-table">
+            <thead>
+              <tr>
+                <th scope="col">阶数</th>
+                <th scope="col">泰勒展开</th>
+                <th scope="col">代入 <span id="centerColLabel">x = 0</span></th>
+                <th scope="col">是否为零</th>
+              </tr>
+            </thead>
+            <tbody id="stepsBody"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="plot-card">
+        <div class="steps-head">
+          <div>
+            <span class="section-kicker">04 / CURVE</span>
+            <h3 id="plotTitle">趋近点附近的函数曲线</h3>
+          </div>
+          <p id="plotCaption">灰色虚线为 <span class="inline-math" id="plotCenterLabel">x = 0</span> · 本地采样</p>
+        </div>
+        <div class="plot-replay-row">
+          <label class="range-toggle" title="开启后可用键盘输入观察区间，曲线按该区间重新采样重播">
+            <input type="checkbox" id="rangeToggle">
+            <span>键盘指定区间</span>
+          </label>
+          <span class="range-fields" id="rangeFields" hidden>
+            <span class="range-label">x ∈</span>
+            <input id="rangeMin" class="range-input" type="text" inputmode="text" placeholder="-0.5" aria-label="区间左端点" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <span class="range-dash">→</span>
+            <input id="rangeMax" class="range-input" type="text" inputmode="text" placeholder="0.5" aria-label="区间右端点" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <button type="button" id="applyRangeBtn" class="ghost-btn">应用</button>
+            <button type="button" id="fullRangeBtn" class="ghost-btn" hidden>全范围</button>
+          </span>
+          <span id="rangeError" class="range-error" hidden></span>
+          <button type="button" id="replayPlotBtn" class="ghost-btn">↻ 重播断点动画</button>
+          <button type="button" id="resetZoomBtn" class="ghost-btn" hidden>⤢ 复位缩放</button>
+          <span class="plot-zoom-tip">拖拽框选放大局部 · 双击复位</span>
+        </div>
+        <div class="plot-loading" id="plotLoading" hidden>
+          <span class="spinner" aria-hidden="true"></span>
+          <span id="plotLoadingText">计算中…</span>
+        </div>
+        <div class="plot-wrap">
+          <canvas id="plotCanvas" aria-label="函数在趋近点附近的曲线"></canvas>
+          <p class="plot-empty" id="plotEmpty" hidden>⚠️ 在实数域内无有效采样点（函数可能包含复数或无定义）</p>
+          <div class="plot-tip" id="plotTip" hidden></div>
+        </div>
+      </article>
+
+      <details class="report-preview" open>
+        <summary>预览 Markdown 推导报告</summary>
+        <pre id="reportPreview"></pre>
+      </details>
+
+      <div class="result-actions">
+        <button id="downloadBtn" type="button" style="display:none;">📥 下载推导报告 (.md)</button>
+        <button id="copyLatexBtn" type="button" class="ghost-btn" style="display:none;">⧉ 复制 LaTeX</button>
+        <button id="copyResultBtn" type="button" class="ghost-btn" style="display:none;">⧉ 复制结论</button>
+        <button id="copyReportBtn" type="button" class="ghost-btn" style="display:none;">⧉ 复制报告</button>
+        <span id="downloadHint">报告包含输入、极限结论与完整逐阶推导。</span>
+      </div>
+    </section>
+
+    <footer class="site-footer">
+      <div class="footer-mark">
+        <img src="assets/img/orca_whale.png" alt="" aria-hidden="true">
+        <span>FREE CALCULATOR <i>·</i> CALCULUS LAB</span>
+      </div>
+      <p>本地计算 / 本地资源 / 无需网络 · Made with Pywebview + SymPy + KaTeX</p>
+    </footer>
+  </main>
+
+  <script src="assets/katex.min.js"></script>
+  <script>
+    // 三模式完整版：极限观测 / 微分求导 / 积分计算
+    window.FREECALC_MODE = "full";
+  </script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
