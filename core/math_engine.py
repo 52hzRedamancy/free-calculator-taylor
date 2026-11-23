@@ -1,10 +1,15 @@
-"""泰勒极限观测引擎 v1.3.2。
+"""极限 · 微分观测引擎 v1.4.0。
 
 安全边界：
 * 只接受 x、数字、四则运算/幂运算、括号、逗号（仅 log 底数）和固定的初等函数白名单；
 * 解析后的自由符号必须只有 x；
 * 所有计算在单线程池中执行，5 秒未返回即明确报超时，超时后引擎短暂冷却；
 * 任何未预期异常都会追加写入 crash.log，并返回结构化错误。
+
+v1.4.0：
+* 新增 `solve_derivative()`：在任意点求 1--10 阶导数，给出斜率、函数值与切线方程；
+* 不可导防护：尖点/断点/无穷导数返回 NOT_DIFFERENTIABLE，域外点返回 DOMAIN_ERROR；
+* 新增《微分观测报告》，前端可叠加切线、切点与不可导点标记。
 
 v1.1.0：
 * 趋近点可自定义（任意有限常数，或 ±∞）；
@@ -52,6 +57,9 @@ class MathEngine:
     MIN_ORDER = 1
     MAX_ORDER = 10
     DEFAULT_ORDER = 6
+    DERIVATIVE_MIN_ORDER = 1
+    DERIVATIVE_MAX_ORDER = 10
+    DERIVATIVE_DEFAULT_ORDER = 1
     PLOT_SAMPLES = 1201
     PLOT_HALF_SPAN = 2.0
     PLOT_MAX_SPAN = 40.0
@@ -178,6 +186,81 @@ class MathEngine:
             return {
                 "success": False,
                 "error": f"计算引擎发生异常：{exc}",
+                "crash_log": str(crash_path),
+            }
+
+    def solve_derivative(
+        self,
+        expression: Any,
+        center: Any = None,
+        order: Any = 1,
+    ) -> dict[str, Any]:
+        """计算表达式在 x0 处的 order 阶导数，并给出该点切线与可视化数据。
+
+        与极限观测共用同一套白名单校验、5 秒超时与超时熔断；
+        尖点、断点、无穷导数会返回 NOT_DIFFERENTIABLE，域外点返回 DOMAIN_ERROR。
+        """
+        try:
+            checked = self._validate(expression)
+            if "error" in checked:
+                return {"success": False, "error": checked["error"]}
+
+            center_check = self._parse_center(center)
+            if "error" in center_check:
+                return {"success": False, "error": center_check["error"]}
+
+            point = center_check["center"]
+            if point in (sp.oo, -sp.oo):
+                return self._not_differentiable(
+                    "定义域错误：该点无定义或趋于无穷",
+                    error_code="DOMAIN_ERROR",
+                    mode="derivative",
+                )
+
+            order_check = self._parse_derivative_order(order)
+            if "error" in order_check:
+                return {"success": False, "error": order_check["error"]}
+
+            cooldown = self._cooldown_remaining()
+            if cooldown > 0:
+                return {
+                    "success": False,
+                    "busy": True,
+                    "error": (
+                        "上一次计算超时后，引擎仍在收尾。"
+                        f"请等待约 {cooldown:.1f} 秒再试，或简化表达式。"
+                    ),
+                }
+
+            executor = self._get_executor()
+            future = executor.submit(
+                self._analyze_derivative,
+                checked["expression"],
+                point,
+                order_check["order"],
+                checked.get("raw", checked["expression"]),
+            )
+            try:
+                return future.result(timeout=self.TIMEOUT_SECONDS)
+            except ValueError as exc:
+                return {"success": False, "error": str(exc)}
+            except FutureTimeoutError:
+                future.cancel()
+                self._mark_timeout()
+                return {
+                    "success": False,
+                    "timeout": True,
+                    "error": (
+                        f"求导超时：超过 {self.TIMEOUT_SECONDS} 秒仍未完成。"
+                        "请降低表达式复杂度或阶数后重试。"
+                    ),
+                }
+
+        except Exception as exc:  # noqa: BLE001 - API 边界必须兜底
+            crash_path = self._write_crash_log(exc)
+            return {
+                "success": False,
+                "error": f"求导引擎发生异常：{exc}",
                 "crash_log": str(crash_path),
             }
 
@@ -502,6 +585,22 @@ class MathEngine:
             }
         return {"order": order}
 
+    def _parse_derivative_order(self, raw: Any) -> dict[str, Any]:
+        if raw is None or raw == "":
+            return {"order": self.DERIVATIVE_DEFAULT_ORDER}
+        try:
+            order = int(float(raw))
+        except (TypeError, ValueError):
+            return {"error": "求导阶数必须是整数。"}
+        if order < self.DERIVATIVE_MIN_ORDER or order > self.DERIVATIVE_MAX_ORDER:
+            return {
+                "error": (
+                    f"求导阶数范围是 {self.DERIVATIVE_MIN_ORDER}--"
+                    f"{self.DERIVATIVE_MAX_ORDER}。"
+                )
+            }
+        return {"order": order}
+
     def _parse_direction(self, raw: Any) -> dict[str, Any]:
         text = "auto" if raw is None or str(raw).strip() == "" else str(raw).strip().lower()
         aliases = {
@@ -741,6 +840,338 @@ class MathEngine:
             "report_filename": filename,
             "engine": f"SymPy {sp.__version__}",
         }
+
+    # ---------------------------------------------------------- derivative
+
+    @staticmethod
+    def _parse_symbolic(clean: str, symbol: sp.Symbol) -> sp.Basic:
+        """与极限观测相同的白名单解析器，供求导模块复用。"""
+        local_dict = {
+            "x": symbol,
+            "sin": sp.sin,
+            "cos": sp.cos,
+            "tan": sp.tan,
+            "asin": sp.asin,
+            "acos": sp.acos,
+            "atan": sp.atan,
+            "sinh": sp.sinh,
+            "cosh": sp.cosh,
+            "tanh": sp.tanh,
+            "exp": sp.exp,
+            "ln": sp.log,
+            "log": _log,
+            "sqrt": sp.sqrt,
+            "abs": sp.Abs,
+            "pi": sp.pi,
+            "e": sp.E,
+        }
+        global_dict = {
+            "__builtins__": {},
+            "Symbol": sp.Symbol,
+            "Integer": sp.Integer,
+            "Float": sp.Float,
+            "Rational": sp.Rational,
+        }
+        try:
+            parsed = sp.parse_expr(
+                clean,
+                local_dict=local_dict,
+                global_dict=global_dict,
+                evaluate=True,
+            )
+        except Exception as exc:
+            raise ValueError(
+                "无法解析表达式，请检查括号、函数参数与运算符（乘方用 **，"
+                "如 2x 应写作 2*x）。"
+            ) from exc
+
+        if not isinstance(parsed, sp.Basic):
+            raise ValueError("表达式没有解析为有效的数学对象。")
+        free_symbols = parsed.free_symbols
+        if free_symbols - {symbol}:
+            names = "、".join(sorted(str(item) for item in free_symbols - {symbol}))
+            raise ValueError(f"出现未允许的变量：{names}。只允许 x。")
+        return parsed
+
+    @staticmethod
+    def _not_differentiable(
+        reason: str, *, error_code: str = "NOT_DIFFERENTIABLE", **extra: Any
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "success": False,
+            "error_code": error_code,
+            "reason": reason,
+            "error": reason,
+            "differentiable": False,
+        }
+        payload.update(extra)
+        return payload
+
+    @staticmethod
+    def _simplify_value(value: Any) -> Any:
+        try:
+            return sp.simplify(value)
+        except Exception:  # noqa: BLE001 - 化简失败时保留原式
+            return value
+
+    @staticmethod
+    def _is_finite_real(value: Any) -> bool:
+        """判断一个 SymPy 值是否为有限实数。"""
+        try:
+            if value.has(sp.nan, sp.zoo, sp.oo, -sp.oo, sp.AccumBounds):
+                return False
+            numeric = complex(sp.N(value, 15))
+        except Exception:  # noqa: BLE001 - 无法数值化即视为不可用
+            return False
+        return math.isfinite(numeric.real) and abs(numeric.imag) < 1e-9
+
+    @staticmethod
+    def _finite_float(value: Any) -> float | None:
+        try:
+            numeric = complex(sp.N(value, 15))
+        except Exception:  # noqa: BLE001 - 无法数值化时前端不画点
+            return None
+        if not math.isfinite(numeric.real) or abs(numeric.imag) > 1e-9:
+            return None
+        return float(numeric.real)
+
+    def _numeric_continuity_probe(
+        self, expr: sp.Basic, symbol: sp.Symbol, point: sp.Basic
+    ) -> tuple[bool, str]:
+        """在 x0 附近对导数做数值采样，捕捉符号化简不掉的尖点/断点。"""
+        try:
+            func = sp.lambdify(symbol, expr, modules=[{"Abs": abs}, "math"])
+            x0 = float(sp.N(point, 15))
+        except Exception:  # noqa: BLE001 - 无法数值化时交给符号检查
+            return True, ""
+        if not math.isfinite(x0):
+            return True, ""
+
+        def sample(where: float) -> float:
+            value = func(where)
+            if isinstance(value, complex):
+                raise ValueError("该点超出实数域")
+            number = float(value)
+            if not math.isfinite(number):
+                raise ValueError("该点函数值为无穷")
+            return number
+
+        try:
+            center = sample(x0)
+        except Exception:  # noqa: BLE001 - x0 本身无定义
+            return False, "该点附近函数无定义"
+
+        for step in (1e-5, 1e-6):
+            try:
+                left = sample(x0 - step)
+                right = sample(x0 + step)
+            except Exception:  # noqa: BLE001 - 邻域无定义视为不连续
+                return False, "该点附近函数无定义"
+            scale = max(1.0, abs(center), abs(left), abs(right))
+            if (
+                abs(left - right) > 1e-2 * scale
+                or abs(left - center) > 1e-2 * scale
+                or abs(right - center) > 1e-2 * scale
+            ):
+                return False, "该点导数不连续（尖点或断点）"
+        return True, ""
+
+    def _derivative_problem(
+        self, derivative: sp.Basic, value: Any, symbol: sp.Symbol, point: sp.Basic
+    ) -> str:
+        """返回该阶导数在 x0 处的问题描述；可导时返回空串。"""
+        if derivative.has(sp.Derivative):
+            return "该点的导数无法用初等函数表示"
+        if derivative.has(sp.zoo):
+            return "该点的导数超出实数域"
+        if not self._is_finite_real(value):
+            return "该点的导数为无穷大或未定义"
+        if value.has(sp.sign, sp.Abs, sp.zoo, sp.Derivative):
+            return "该点是尖点，导数不存在"
+        ok, detail = self._numeric_continuity_probe(derivative, symbol, point)
+        if not ok:
+            return detail
+        return ""
+
+    def _order_failure(
+        self,
+        failed_order: int,
+        requested_order: int,
+        detail: str,
+        *,
+        clean: str,
+        raw: str | None,
+        point: sp.Basic,
+        parsed: sp.Basic,
+        symbol: sp.Symbol,
+        parsed_latex: str,
+        elapsed_ms: int,
+    ) -> dict[str, Any]:
+        if failed_order <= 1:
+            headline = "该点不可导（可能存在尖点、断点或无穷导数）。"
+            reason = headline
+        else:
+            headline = (
+                f"由于高阶导数不存在，仅在 {failed_order - 1} 阶内可导。"
+            )
+            reason = f"{headline}（{failed_order} 阶导数：{detail}）"
+        report = self._build_derivative_report(
+            clean=raw or clean,
+            parsed_latex=parsed_latex,
+            center_text=str(point),
+            center_latex=sp.latex(point),
+            order=requested_order,
+            elapsed_ms=elapsed_ms,
+            success=False,
+            failed_order=failed_order,
+            reason=reason,
+        )
+        return self._not_differentiable(
+            reason,
+            mode="derivative",
+            expression=raw or clean,
+            normalized=str(parsed),
+            expression_latex=parsed_latex,
+            center_text=str(point),
+            center_latex=sp.latex(point),
+            derivative_order=requested_order,
+            differentiated_up_to=failed_order - 1,
+            failure_order=failed_order,
+            detail=detail,
+            headline=headline,
+            elapsed_ms=elapsed_ms,
+            plot=self._sample_plot(parsed, symbol, point),
+            x0_num=self._finite_float(point),
+            y0_num=self._finite_float(parsed.subs(symbol, point)),
+            raw_report=report,
+            report_filename=self._derivative_report_filename(
+                raw or clean, str(point)
+            ),
+            engine=f"SymPy {sp.__version__}",
+        )
+
+    def _analyze_derivative(
+        self,
+        clean: str,
+        point: sp.Basic,
+        order: int,
+        raw: str | None = None,
+    ) -> dict[str, Any]:
+        started = time.perf_counter()
+        symbol = sp.Symbol("x", real=True)
+        parsed = self._parse_symbolic(clean, symbol)
+        parsed_latex = sp.latex(parsed)
+
+        f0 = self._simplify_value(parsed.subs(symbol, point))
+        if not self._is_finite_real(f0):
+            payload = self._not_differentiable(
+                "定义域错误：该点无定义或趋于无穷",
+                error_code="DOMAIN_ERROR",
+                mode="derivative",
+                expression=raw or clean,
+                normalized=str(parsed),
+                center_text=str(point),
+                center_latex=sp.latex(point),
+                derivative_order=order,
+                expression_latex=parsed_latex,
+            )
+            payload["plot"] = self._sample_plot(parsed, symbol, point)
+            payload["x0_num"] = self._finite_float(point)
+            payload["y0_num"] = None
+            return payload
+
+        derivative = parsed
+        last_value = f0
+        for index in range(1, order + 1):
+            derivative = sp.diff(derivative, symbol)
+            simplified = sp.simplify(derivative)
+            value = self._simplify_value(simplified.subs(symbol, point))
+            problem = self._derivative_problem(simplified, value, symbol, point)
+            if problem:
+                elapsed_ms = int((time.perf_counter() - started) * 1000)
+                return self._order_failure(
+                    index,
+                    order,
+                    problem,
+                    clean=clean,
+                    raw=raw,
+                    point=point,
+                    parsed=parsed,
+                    symbol=symbol,
+                    parsed_latex=parsed_latex,
+                    elapsed_ms=elapsed_ms,
+                )
+            last_value = value
+
+        slope = last_value
+        slope_latex = sp.latex(slope)
+        y0_latex = sp.latex(f0)
+        x0_latex = sp.latex(point)
+        tangent_expr = sp.simplify(slope * (symbol - point) + f0)
+        tangent_latex = f"y = {sp.latex(tangent_expr)}"
+        if slope == 0:
+            tangent_point_latex = f"y = {y0_latex}"
+        else:
+            tangent_point_latex = (
+                f"y = {slope_latex} \\left(x - {x0_latex}\\right) + {y0_latex}"
+            )
+
+        plot = self._sample_plot(parsed, symbol, point)
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        display_expression = raw or clean
+        raw_report = self._build_derivative_report(
+            clean=display_expression,
+            parsed_latex=parsed_latex,
+            center_text=str(point),
+            center_latex=x0_latex,
+            order=order,
+            elapsed_ms=elapsed_ms,
+            success=True,
+            derivative_latex=sp.latex(derivative),
+            slope_latex=slope_latex,
+            y0_latex=y0_latex,
+            tangent_latex=tangent_latex,
+            tangent_point_latex=tangent_point_latex,
+        )
+        return {
+            "success": True,
+            "mode": "derivative",
+            "differentiable": True,
+            "expression": display_expression,
+            "expression_latex": parsed_latex,
+            "normalized": str(parsed),
+            "center_text": str(point),
+            "center_latex": x0_latex,
+            "derivative_order": order,
+            "derivative_latex": sp.latex(derivative),
+            "derivative_text": str(derivative),
+            "derivative_at_latex": slope_latex,
+            "slope": str(slope),
+            "slope_latex": slope_latex,
+            "slope_num": self._finite_float(slope),
+            "y0": str(f0),
+            "y0_latex": y0_latex,
+            "y0_num": self._finite_float(f0),
+            "x0_num": self._finite_float(point),
+            "tangent_latex": tangent_latex,
+            "tangent_point_latex": tangent_point_latex,
+            "tangent_text": str(tangent_expr),
+            "plot": plot,
+            "elapsed_ms": elapsed_ms,
+            "raw_report": raw_report,
+            "report_filename": self._derivative_report_filename(
+                display_expression, str(point)
+            ),
+            "engine": f"SymPy {sp.__version__}",
+        }
+
+    def _derivative_report_filename(self, clean: str, center_text: str) -> str:
+        slug = re.sub(r"[^0-9A-Za-z]+", "_", clean).strip("_")[:28]
+        point = re.sub(r"[^0-9A-Za-z]+", "", center_text)[:10] or "0"
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if not slug:
+            return f"Derivative_Report_{stamp}.md"
+        return f"Derivative_{slug}_x{point}_{stamp}.md"
 
     def _try_directional_limit(
         self,
@@ -1134,6 +1565,87 @@ class MathEngine:
         lines.append(
             "每阶均使用 `sympy.series(..., x, 趋近点, 阶数).removeO()` 去掉大 O 余项后再代入。"
         )
+        lines += [
+            "",
+            "---",
+            "",
+            "本报告完全由本地程序生成，未请求任何网络资源。",
+            "",
+        ]
+        return "\n".join(lines)
+
+    def _build_derivative_report(
+        self,
+        *,
+        clean: str,
+        parsed_latex: str,
+        center_text: str,
+        center_latex: str,
+        order: int,
+        elapsed_ms: int,
+        success: bool,
+        derivative_latex: str = "",
+        slope_latex: str = "",
+        y0_latex: str = "",
+        tangent_latex: str = "",
+        tangent_point_latex: str = "",
+        failed_order: int | None = None,
+        reason: str = "",
+    ) -> str:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if order == 1:
+            notation = "f'(x)"
+        elif order == 2:
+            notation = "f''(x)"
+        else:
+            notation = f"f^{{({order})}}(x)"
+        lines = [
+            "# 微分观测报告",
+            "",
+            "> 由 **自由计算器 v1.4.0 / 微分观测引擎** 在本机离线生成。",
+            f"> 计算时间：{now} · 耗时：{elapsed_ms} ms · 引擎：SymPy {sp.__version__}",
+            "",
+            "## 原始函数",
+            "",
+            f"\\(f(x) = {parsed_latex}\\)",
+            "",
+            "## 求导点与阶数",
+            "",
+            f"\\(x_0 = {center_latex}\\), \\(n = {order}\\)",
+            "",
+        ]
+        if success:
+            lines += [
+                "## 推导结果",
+                "",
+                f"- 导数表达式：\\({notation} = {derivative_latex}\\)",
+                f"- 该点函数值：\\(f(x_0) = {y0_latex}\\)",
+                f"- 该点斜率 \\(k = {slope_latex}\\)",
+                f"- 切线方程：\\({tangent_latex}\\)",
+                f"- 点斜式：\\({tangent_point_latex}\\)",
+                "",
+                "## 结论",
+                "",
+                "> 计算成功。切线已在图表中高亮显示。",
+            ]
+        else:
+            if failed_order and failed_order > 1:
+                headline = (
+                    f"由于高阶导数不存在，仅在 {failed_order - 1} 阶内可导。"
+                )
+            else:
+                headline = "该点存在尖点、断点或无穷导数，不可导。"
+            lines += [
+                "## 推导结果",
+                "",
+                f"- 计算在求导过程中终止：{reason}",
+                f"- 失败阶数：\\(n = {failed_order}\\)",
+                f"- 原始输入：`{clean}`",
+                "",
+                "## 结论",
+                "",
+                f"> **执行失败**：{headline}",
+            ]
         lines += [
             "",
             "---",

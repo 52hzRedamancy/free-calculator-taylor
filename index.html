@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>自由计算器 v1.3.2 · 泰勒极限观测引擎</title>
+  <title>自由计算器 v1.4.0 · 极限 · 微分观测引擎</title>
   <link rel="stylesheet" href="assets/pico.min.css">
   <link rel="stylesheet" href="assets/katex.min.css">
   <link rel="stylesheet" href="assets/style.css">
@@ -31,7 +31,7 @@
     </div>
     <div class="splash-copy">
       <h1>自由计算器</h1>
-      <p>泰勒极限观测引擎 · 本地离线计算</p>
+      <p>极限 · 微分观测引擎 · 本地离线计算</p>
       <div class="splash-loader"><span></span></div>
       <small>正在载入本地数学引擎</small>
     </div>
@@ -123,16 +123,17 @@
       <div class="hero-copy">
         <div class="eyebrow">
           <span class="eyebrow-mark"></span>
-          FREE CALCULATOR <i>/</i> v1.3.2
+          FREE CALCULATOR <i>/</i> v1.4.0
         </div>
-        <h1>自由计算器<span>泰勒极限观测引擎</span></h1>
+        <h1>自由计算器<span>极限 · 微分观测引擎</span></h1>
         <p class="hero-lede">
-          把极限拆成 1 到 10 阶泰勒展开，逐阶代入任意趋近点，
-          看清函数如何收敛。所有计算都在你的电脑上完成。
+          把极限拆成 1 到 10 阶泰勒展开，逐阶代入任意趋近点；
+          也可在任意点求 1 到 10 阶导数，当场画出切线。所有计算都在你的电脑上完成。
         </p>
         <div class="hero-badges" aria-label="产品特性">
           <span><b></b>本地 SymPy</span>
-          <span><b></b>任意趋近点</span>
+          <span><b></b>极限 / 求导双模式</span>
+          <span><b></b>切线可视化</span>
           <span><b></b>KaTeX 离线渲染</span>
         </div>
         <div class="hero-controls" aria-label="外观与曲线效果">
@@ -181,8 +182,19 @@
         <span class="live-chip"><i></i>LOCAL ENGINE</span>
       </div>
 
+      <div class="mode-tabs" role="tablist" aria-label="观测模式">
+        <button type="button" class="mode-tab is-active" id="modeLimitTab" role="tab" aria-selected="true" data-mode="limit">
+          <span class="mode-tab-kicker">LIMIT</span>
+          <span class="mode-tab-text">观测极限</span>
+        </button>
+        <button type="button" class="mode-tab" id="modeDerivTab" role="tab" aria-selected="false" data-mode="derivative">
+          <span class="mode-tab-kicker">DERIVATIVE</span>
+          <span class="mode-tab-text">观测求导</span>
+        </button>
+      </div>
+
       <form id="calcForm" novalidate>
-        <label for="expression">
+        <label for="expression" id="exprLabel">
           关于 x 的表达式与趋近点
           <span>sin · cos · tan · exp · ln · log · sqrt · abs · pi · e</span>
         </label>
@@ -216,7 +228,7 @@
           <button type="submit" id="observeBtn">观测极限</button>
         </div>
 
-        <div class="param-row">
+        <div class="param-row" id="limitParams">
           <label class="order-field" for="directionSelect">
             极限方向
             <select id="directionSelect" aria-label="极限方向">
@@ -243,6 +255,27 @@
           </label>
           <p class="input-hint" id="inputHint">
             趋近点可填常数或 <code>oo</code>；输入 <code>log(</code> 会自动补出底数位 <code>log(x, ▮)</code>；<code>2x</code> 会自动补乘号。
+          </p>
+        </div>
+
+        <div class="param-row" id="derivativeParams" hidden>
+          <label class="order-field" for="derivativeOrderSelect">
+            求导阶数
+            <select id="derivativeOrderSelect" aria-label="求导阶数">
+              <option value="1" selected>1 阶</option>
+              <option value="2">2 阶</option>
+              <option value="3">3 阶</option>
+              <option value="4">4 阶</option>
+              <option value="5">5 阶</option>
+              <option value="6">6 阶</option>
+              <option value="7">7 阶</option>
+              <option value="8">8 阶</option>
+              <option value="9">9 阶</option>
+              <option value="10">10 阶</option>
+            </select>
+          </label>
+          <p class="input-hint" id="derivativeHint">
+            在 <code>x₀</code> 处求 <code>n</code> 阶导数并画出切线；尖点、断点或导数为无穷时会被拦下。
           </p>
         </div>
         <p class="func-hint" id="funcHint" hidden></p>
@@ -276,13 +309,41 @@
     <section class="results" id="resultSection" aria-labelledby="resultTitle" hidden>
       <div class="result-heading">
         <div>
-          <span class="section-kicker">02 / OBSERVATION</span>
+          <span class="section-kicker" id="resultKicker">02 / OBSERVATION</span>
           <h2 id="resultTitle">观测结果</h2>
         </div>
         <span class="result-time" id="resultTime">—</span>
       </div>
 
-      <article class="limit-card">
+      <article class="derivative-card" id="derivativeCard" hidden>
+        <div class="limit-card-head">
+          <span class="limit-label" id="derivLabel">DERIVATIVE FOUND</span>
+          <span class="limit-status" id="derivStatus">可导</span>
+        </div>
+        <div class="deriv-formula" id="derivFormula" aria-live="polite"></div>
+        <div class="deriv-grid">
+          <div class="deriv-item">
+            <span>该点斜率 k = f<sup>(n)</sup>(x₀)</span>
+            <code id="derivSlope">—</code>
+          </div>
+          <div class="deriv-item">
+            <span>函数值 f(x₀)</span>
+            <code id="derivY0">—</code>
+          </div>
+          <div class="deriv-item">
+            <span>求导阶数</span>
+            <code id="derivOrder">n = 1</code>
+          </div>
+        </div>
+        <div class="deriv-tangent">
+          <span>切线方程</span>
+          <div id="derivTangent" class="deriv-tangent-math"></div>
+          <p id="derivPointSlope" class="deriv-point-slope"></p>
+        </div>
+        <p class="deriv-note" id="derivNote"></p>
+      </article>
+
+      <article class="limit-card" id="limitCard">
         <div class="limit-card-head">
           <span class="limit-label" id="limitLabel">LIMIT FOUND</span>
           <span class="limit-status" id="limitStatus">收敛</span>
@@ -317,7 +378,7 @@
         </article>
       </div>
 
-      <article class="steps-card">
+      <article class="steps-card" id="stepsCard">
         <div class="steps-head">
           <div>
             <span class="section-kicker">03 / TAYLOR TRACE</span>
@@ -346,7 +407,7 @@
             <span class="section-kicker">04 / CURVE</span>
             <h3>趋近点附近的函数曲线</h3>
           </div>
-          <p>灰色虚线为 <span class="inline-math" id="plotCenterLabel">x = 0</span> · 本地采样</p>
+          <p id="plotCaption">灰色虚线为 <span class="inline-math" id="plotCenterLabel">x = 0</span> · 本地采样</p>
         </div>
         <div class="plot-replay-row">
           <label class="range-toggle" title="开启后可用键盘输入观察区间，曲线按该区间重新采样重播">
@@ -369,6 +430,7 @@
         <div class="plot-wrap">
           <canvas id="plotCanvas" aria-label="函数在趋近点附近的曲线"></canvas>
           <p class="plot-empty" id="plotEmpty" hidden>⚠️ 在实数域内无有效采样点（函数可能包含复数或无定义）</p>
+          <div class="plot-tip" id="plotTip" hidden></div>
         </div>
       </article>
 

@@ -1,4 +1,4 @@
-"""自由计算器 v1.3.2 - pywebview 桌面入口。"""
+"""自由计算器 v1.4.0 - pywebview 桌面入口。"""
 
 from __future__ import annotations
 
@@ -81,7 +81,7 @@ def main() -> None:
 
     width, height, x, y = fit_window_size()
     window_args = dict(
-        title="自由计算器 v1.3.2",
+        title="自由计算器 v1.4.0",
         url=index_file,
         js_api=MathEngine(),
         width=width,

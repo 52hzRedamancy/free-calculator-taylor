@@ -1478,6 +1478,7 @@ body::after {
 .result-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 14px;
   margin-top: 14px;
 }
@@ -1495,6 +1496,7 @@ body::after {
 
 .ghost-btn {
   flex: 0 0 auto;
+  width: auto;
   margin: 0;
   padding: 10px 13px;
   border: 1px solid rgba(105, 227, 255, 0.26);
@@ -2026,4 +2028,249 @@ html[data-skin="chibi"] body::before {
 
 .range-error[hidden] {
   display: none;
+}
+/* =========================================================
+   v1.4.0 · 观测模式切换 / 求导面板 / 切线图层
+   ========================================================= */
+
+.mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0 2px;
+}
+
+.mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 9px 18px;
+  border: 1px solid rgba(105, 227, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(6, 20, 32, 0.66);
+  color: #8fb4c4;
+  font-family: var(--sans);
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.mode-tab:hover {
+  border-color: rgba(105, 227, 255, 0.34);
+  color: #d9f4ff;
+}
+
+.mode-tab.is-active {
+  border-color: rgba(92, 233, 255, 0.58);
+  color: #f2feff;
+  background: linear-gradient(135deg, rgba(21, 68, 92, 0.92), rgba(7, 27, 41, 0.92));
+  box-shadow: 0 0 0 1px rgba(92, 233, 255, 0.16), 0 12px 28px rgba(0, 0, 0, 0.34);
+}
+
+.mode-tab:focus-visible {
+  outline: 2px solid rgba(92, 233, 255, 0.5);
+  outline-offset: 2px;
+}
+
+.mode-tab-kicker {
+  color: #567c8e;
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.18em;
+}
+
+.mode-tab.is-active .mode-tab-kicker {
+  color: var(--cyan);
+}
+
+.mode-tab-text {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.api-status[data-state="ok"] {
+  color: #7dffcb;
+}
+
+.api-status[data-state="ok"] .status-dot {
+  background: var(--mint);
+  box-shadow: 0 0 10px var(--mint);
+}
+
+.api-status[data-state="warn"] {
+  color: #ff6b7f;
+}
+
+.api-status[data-state="warn"] .status-dot {
+  background: #ff3b57;
+  box-shadow: 0 0 10px #ff3b57;
+  animation: pulse-dot 1s ease-in-out infinite;
+}
+
+.derivative-card {
+  position: relative;
+  overflow: hidden;
+  padding: 22px 26px 20px;
+  border: 1px solid rgba(255, 130, 176, 0.26);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(520px 240px at 12% 0%, rgba(255, 110, 158, 0.14), transparent 70%),
+    radial-gradient(360px 220px at 92% 100%, rgba(255, 190, 110, 0.08), transparent 72%),
+    linear-gradient(135deg, rgba(34, 12, 24, 0.96), rgba(9, 7, 16, 0.94));
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.derivative-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 140, 180, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 140, 180, 0.04) 1px, transparent 1px);
+  background-size: 42px 42px;
+  -webkit-mask-image: linear-gradient(90deg, #000, transparent 75%);
+  mask-image: linear-gradient(90deg, #000, transparent 75%);
+}
+
+.derivative-card[hidden],
+.limit-card[hidden],
+.steps-card[hidden] {
+  display: none;
+}
+
+.deriv-formula {
+  position: relative;
+  z-index: 1;
+  margin: 16px 0 6px;
+  overflow-x: auto;
+}
+
+.deriv-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 14px 0 12px;
+}
+
+.deriv-item {
+  padding: 10px 13px;
+  border: 1px solid rgba(255, 130, 176, 0.16);
+  border-radius: 11px;
+  background: rgba(36, 12, 24, 0.5);
+}
+
+.deriv-item > span {
+  display: block;
+  margin-bottom: 5px;
+  color: #a5798c;
+  font-family: var(--mono);
+  font-size: 0.54rem;
+  letter-spacing: 0.1em;
+}
+
+.deriv-item > code {
+  color: #ffc7d8;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
+.deriv-tangent {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 12px 15px;
+  border: 1px dashed rgba(255, 130, 176, 0.3);
+  border-radius: 12px;
+  background: rgba(46, 14, 28, 0.42);
+}
+
+.deriv-tangent > span {
+  color: #a5798c;
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.deriv-tangent-math {
+  color: #ffd7e3;
+  font-size: 0.92rem;
+}
+
+.deriv-point-slope {
+  flex-basis: 100%;
+  margin: 0;
+  color: #8d6678;
+  font-family: var(--mono);
+  font-size: 0.64rem;
+}
+
+.deriv-note {
+  position: relative;
+  z-index: 1;
+  margin: 12px 0 0;
+  color: #a08190;
+  font-size: 0.72rem;
+  line-height: 1.65;
+}
+
+.plot-wrap {
+  position: relative;
+}
+
+.plot-tip {
+  position: absolute;
+  z-index: 3;
+  padding: 5px 9px;
+  border: 1px solid rgba(255, 214, 102, 0.42);
+  border-radius: 8px;
+  background: rgba(28, 20, 4, 0.94);
+  color: #ffe9a8;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, -150%);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+
+.plot-tip[hidden] {
+  display: none;
+}
+
+.derivative-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid rgba(255, 130, 176, 0.28);
+  border-radius: 999px;
+  color: #ffc7d8;
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.08em;
+}
+
+.deriv-formula.is-alert {
+  color: #ff9fb0;
+  font-family: var(--sans);
+  font-size: 0.86rem;
+  line-height: 1.7;
+}
+
+.mode-tabs {
+  align-items: center;
+}
+
+.mode-tab {
+  width: auto;
+  flex: 0 0 auto;
 }
