@@ -8,3 +8,23 @@ dist/
 .dsh-meow/
 whale-roles/
 napcat-qr.png
+# 一次性调试与素材残留（非产品文件）
+/*.mjs
+/*.ps1
+/*.png
+/*.docx
+career/
+chrome-cdp/
+js/
+web/
+nul
+out.txt
+videos.json
+app.js
+loader.js
+page.html
+build_docx.py
+build_docx2.py
+extract_ppt.py
+build_log.txt
+FreeCalculator_Portable.zip
